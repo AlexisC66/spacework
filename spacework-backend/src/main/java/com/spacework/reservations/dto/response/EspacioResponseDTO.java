@@ -43,6 +43,8 @@ public class EspacioResponseDTO {
         private Integer id;
         private String nombreUbicacion;
         private String direccion;
+        private String ciudad;
+        private String pais;
     }
 
     @Data

@@ -45,10 +45,12 @@ public class ServicioAdicional {
     @Column(name = "ImagenUrl", length = 500)
     private String imagenUrl;
 
-    @Column(name = "CaracteristicasDetalle", columnDefinition = "TEXT")
+    @Lob
+    @Column(name = "CaracteristicasDetalle", columnDefinition = "NVARCHAR(MAX)")
     private String caracteristicasDetalle;
 
-    @Column(name = "AdvertenciasDevolucion", columnDefinition = "TEXT")
+    @Lob
+    @Column(name = "AdvertenciasDevolucion", columnDefinition = "NVARCHAR(MAX)")
     private String advertenciasDevolucion;
 
 }

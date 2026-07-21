@@ -1,13 +1,22 @@
 package com.spacework.billing.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import com.spacework.reservations.model.Reserva;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "Pagos", schema = "Reservas")
+@Table(name = "Pagos", schema = "Reservas",
+       indexes = {
+           @Index(name = "idx_pago_reserva", columnList = "ReservaID"),
+           @Index(name = "idx_pago_estado", columnList = "EstadoPago")
+       })
+@Getter
+@Setter
+@NoArgsConstructor
 public class Pago {
 
     @Id
@@ -15,11 +24,11 @@ public class Pago {
     @Column(name = "PagoID")
     private Integer id;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ReservaID", nullable = false)
     private Reserva reserva;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "FormaPagoID", nullable = false)
     private FormaPago formaPago;
 
@@ -38,73 +47,9 @@ public class Pago {
     @Column(name = "Estado", nullable = false)
     private boolean estado = true;
 
-    // creadores del objeto
-    public Pago() {}
-
-    // MÃ©todos para obtener y modificar los datos
-    public Integer getId() {
-        return id;
-    }
-
-    public void setId(Integer id) {
-        this.id = id;
-    }
-
-    public Reserva getReserva() {
-        return reserva;
-    }
-
-    public void setReserva(Reserva reserva) {
-        this.reserva = reserva;
-    }
-
-    public FormaPago getFormaPago() {
-        return formaPago;
-    }
-
-    public void setFormaPago(FormaPago formaPago) {
-        this.formaPago = formaPago;
-    }
-
-    public BigDecimal getMontoPago() {
-        return montoPago;
-    }
-
-    public void setMontoPago(BigDecimal montoPago) {
-        this.montoPago = montoPago;
-    }
-
-    public LocalDateTime getFechaPago() {
-        return fechaPago;
-    }
-
-    public void setFechaPago(LocalDateTime fechaPago) {
-        this.fechaPago = fechaPago;
-    }
-
-    public String getReferenciaTransaccion() {
-        return referenciaTransaccion;
-    }
-
-    public void setReferenciaTransaccion(String referenciaTransaccion) {
-        this.referenciaTransaccion = referenciaTransaccion;
-    }
-
-    public String getEstadoPago() {
-        return estadoPago;
-    }
-
-    public void setEstadoPago(String estadoPago) {
-        this.estadoPago = estadoPago;
-    }
-
-    public boolean isEstado() {
-        return estado;
-    }
-
-    public void setEstado(boolean estado) {
-        this.estado = estado;
-    }
+    @Version
+    @Column(name = "Version")
+    private Long version;
 }
 
 

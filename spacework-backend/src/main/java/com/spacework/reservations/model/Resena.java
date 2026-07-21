@@ -8,7 +8,12 @@ import lombok.Setter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "Resenas", schema = "Reservas")
+@Table(name = "Resenas", schema = "Reservas",
+       indexes = {
+           @Index(name = "idx_resena_espacio", columnList = "EspacioID"),
+           @Index(name = "idx_resena_reserva", columnList = "ReservaID"),
+           @Index(name = "idx_resena_fecha", columnList = "FechaResena")
+       })
 @Getter
 @Setter
 @NoArgsConstructor
@@ -19,22 +24,23 @@ public class Resena {
     @Column(name = "ResenaID")
     private Integer id;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ReservaID", nullable = false)
     private Reserva reserva;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "UsuarioID", nullable = false)
     private Usuario usuario;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "EspacioID", nullable = false)
     private Espacio espacio;
 
     @Column(name = "Calificacion", nullable = false)
     private Integer calificacion; // 1 to 5
 
-    @Column(name = "Comentario", columnDefinition = "TEXT")
+    @Lob
+    @Column(name = "Comentario", columnDefinition = "NVARCHAR(MAX)")
     private String comentario;
 
     @Column(name = "FechaResena", nullable = false)

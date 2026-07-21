@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import { apiService } from '../services/api';
 import TermsModal from './TermsModal';
-import type { Espacio, ServicioAdicional } from '../types';
+import CalendarioDisponibilidad from './CalendarioDisponibilidad';
+import ServiceDetailModal from './ServiceDetailModal';
+import ReservationPaymentModal from './ReservationPaymentModal';
+import type { Espacio, ServicioAdicional, SlotDTO } from '../types';
+import { extractApiError } from '../types';
 
 const Reserva: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -26,6 +30,7 @@ const Reserva: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [cargando, setCargando] = useState(false);
+  const [cargandoDatos, setCargandoDatos] = useState(true);
   const [aplicaTarifaMedioDia, setAplicaTarifaMedioDia] = useState(false);
 
   const [promedioResenas, setPromedioResenas] = useState<number>(0);
@@ -41,6 +46,18 @@ const Reserva: React.FC = () => {
   const [personasExtra, setPersonasExtra] = useState<number>(0);
   const [diasReserva, setDiasReserva] = useState<number>(1);
 
+  const [conflictos, setConflictos] = useState<SlotDTO[]>([]);
+  const [verificandoDisponibilidad, setVerificandoDisponibilidad] = useState(false);
+
+  const hayConflicto = useMemo(() => {
+    if (!fechaInicio || !fechaFin || conflictos.length === 0) return false;
+    return conflictos.some(s => {
+      const sInicio = new Date(s.inicio);
+      const sFin = new Date(s.fin);
+      return fechaInicio < sFin && fechaFin > sInicio;
+    });
+  }, [fechaInicio, fechaFin, conflictos]);
+
   // Modal Terms State
   const [mostrarTermsModal, setMostrarTermsModal] = useState(false);
   const [intencionReserva, setIntencionReserva] = useState<'ahora' | 'luego' | null>(null);
@@ -48,14 +65,6 @@ const Reserva: React.FC = () => {
 
   // flujo Pago State
   const [mostrarModalPago, setMostrarModalPago] = useState(false);
-  const [metodoPago, setMetodoPago] = useState('card');
-  const [pagoForm, setPagoForm] = useState({
-    nombreTarjeta: '',
-    nroTarjeta: '',
-    exp: '',
-    cvv: '',
-    referencia: ''
-  });
 
   useEffect(() => {
     const userStr = sessionStorage.getItem('user');
@@ -68,25 +77,48 @@ const Reserva: React.FC = () => {
     const espId = Number(id);
     setEspacioId(espId);
 
-    // cargar información de precio real
-    apiService.getEspacios().then(response => {
-      const esp = response.data.find((e: Espacio) => e.id === espId);
-      if (esp) {
-        setEspacio(esp);
-        const precioDia = Number(esp.precio) || 0;
-        setPrecioHora(precioDia > 0 ? Math.round((precioDia / 8) * 100) / 100 : 0);
-      }
-    }).catch(err => console.error(err));
-
-    apiService.getPromedioEspacio(espId).then(res => {
-      setPromedioResenas(res.data.promedio || 0);
-      setTotalResenas(res.data.total || 0);
-    }).catch(err => console.error(err));
-
-    apiService.getServiciosAdicionales().then(res => {
-      setServiciosDisponibles(res.data.filter((s: ServicioAdicional) => s.estado === true));
-    }).catch(err => console.error(err));
+    setCargandoDatos(true);
+    Promise.all([
+      apiService.getEspacios().then(response => {
+        const esp = response.data.find((e: Espacio) => e.id === espId);
+        if (esp) {
+          setEspacio(esp);
+          const precioDia = Number(esp.precio) || 0;
+          setPrecioHora(precioDia > 0 ? Math.round((precioDia / 8) * 100) / 100 : 0);
+        }
+      }),
+      apiService.getPromedioEspacio(espId).then(res => {
+        setPromedioResenas(res.data.promedio || 0);
+        setTotalResenas(res.data.total || 0);
+      }),
+      apiService.getServiciosAdicionales().then(res => {
+        setServiciosDisponibles(res.data.filter((s: ServicioAdicional) => s.estado === true));
+      })
+    ]).catch(err => console.error(err))
+      .finally(() => setCargandoDatos(false));
   }, [id, navigate]);
+
+  useEffect(() => {
+    if (!espacioId || !fechaInicio || !fechaFin) {
+      setConflictos([]);
+      return;
+    }
+    const desde = new Date(fechaInicio);
+    desde.setDate(desde.getDate() - 1);
+    const hasta = new Date(fechaFin);
+    hasta.setDate(hasta.getDate() + 1);
+
+    const desdeStr = desde.toISOString().slice(0, 19);
+    const hastaStr = hasta.toISOString().slice(0, 19);
+
+    setVerificandoDisponibilidad(true);
+    apiService.getDisponibilidad(espacioId, desdeStr, hastaStr)
+      .then(res => {
+        setConflictos(res.data.ocupaciones || []);
+      })
+      .catch(() => setConflictos([]))
+      .finally(() => setVerificandoDisponibilidad(false));
+  }, [espacioId, fechaInicio, fechaFin]);
 
   useEffect(() => {
     calcularTotal();
@@ -224,6 +256,10 @@ const Reserva: React.FC = () => {
       setErrorMessage('Las fechas seleccionadas no son válidas.');
       return;
     }
+    if (hayConflicto) {
+      setErrorMessage('El rango seleccionado se superpone con una reserva existente. Elige otras fechas.');
+      return;
+    }
     if (espacio && asistentes > espacio.capacidad) {
       setErrorMessage(`El número de asistentes no puede superar la capacidad del espacio (${espacio.capacidad} personas).`);
       return;
@@ -243,21 +279,9 @@ const Reserva: React.FC = () => {
     
     if (intencionReserva === 'ahora') {
       setMostrarModalPago(true);
-      setMetodoPago('card');
-      setPagoForm({
-        nombreTarjeta: '',
-        nroTarjeta: '',
-        exp: '',
-        cvv: '',
-        referencia: ''
-      });
     } else if (intencionReserva === 'luego') {
       crearReservaPendiente(facturacion);
     }
-  };
-
-  const cerrarFlujoPago = () => {
-    setMostrarModalPago(false);
   };
 
   const crearReservaPendiente = async (facturacion: Record<string, string>) => {
@@ -272,7 +296,8 @@ const Reserva: React.FC = () => {
       fechaFin: fechaFin ? `${fechaFin.getFullYear()}-${String(fechaFin.getMonth() + 1).padStart(2, '0')}-${String(fechaFin.getDate()).padStart(2, '0')}T${String(fechaFin.getHours()).padStart(2, '0')}:${String(fechaFin.getMinutes()).padStart(2, '0')}:00` : undefined,
       montoTotal: totalCalculado,
       descuentoAplicado: descuentoMonto,
-      observaciones: `${observaciones || ''} | Asistentes: ${asistentes}`,
+      observaciones: observaciones || '',
+      asistentes: asistentes,
       serviciosAdicionales: serviciosSeleccionados,
       tipoComprobante: facturacion.tipoComprobante,
       documentoIdentidad: facturacion.documento,
@@ -283,119 +308,10 @@ const Reserva: React.FC = () => {
     try {
       await apiService.crearReserva(reservaData);
       setSuccessMessage('¡Reserva creada exitosamente! Podrás pagarla después desde "Mis Reservas". Redireccionando...');
-      setTimeout(() => {
-        navigate('/mis-reservas');
-      }, 2500);
+      setTimeout(() => { navigate('/mis-reservas'); }, 2500);
     } catch (err: unknown) {
       setCargando(false);
-      setErrorMessage((err as any).response?.data?.error || 'Error al guardar la reserva. Verifique disponibilidad.');
-    }
-  };
-
-  const formatCardNumber = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let input = e.target.value.replace(/\D/g, '');
-    let formatted = input.match(/.{1,4}/g)?.join(' ') || input;
-    setPagoForm(prev => ({ ...prev, nroTarjeta: formatted }));
-  };
-
-  const formatExpiry = (e: React.ChangeEvent<HTMLInputElement>) => {
-    let input = e.target.value.replace(/\D/g, '');
-    if (input.length > 2) {
-      input = input.substring(0, 2) + '/' + input.substring(2, 4);
-    }
-    setPagoForm(prev => ({ ...prev, exp: input }));
-  };
-
-  const isValidLuhn = (num: string) => {
-    const cleanNum = num.replace(/\D/g, '');
-    if (!cleanNum) return false;
-    let sum = 0;
-    let isEven = false;
-    for (let i = cleanNum.length - 1; i >= 0; i--) {
-      let digit = parseInt(cleanNum.charAt(i), 10);
-      if (isEven) {
-        digit *= 2;
-        if (digit > 9) {
-          digit -= 9;
-        }
-      }
-      sum += digit;
-      isEven = !isEven;
-    }
-    return sum % 10 === 0;
-  };
-
-  const confirmarPagoYCrearReserva = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage('');
-    setSuccessMessage('');
-    
-    if (metodoPago === 'card' && !isValidLuhn(pagoForm.nroTarjeta)) {
-      setErrorMessage('El número de tarjeta es inválido.');
-      return;
-    }
-
-    setCargando(true);
-
-    const reservaData = {
-      usuarioId: usuarioId,
-      espacioId: espacioId,
-      fechaInicio: fechaInicio ? `${fechaInicio.getFullYear()}-${String(fechaInicio.getMonth() + 1).padStart(2, '0')}-${String(fechaInicio.getDate()).padStart(2, '0')}T${String(fechaInicio.getHours()).padStart(2, '0')}:${String(fechaInicio.getMinutes()).padStart(2, '0')}:00` : undefined,
-      fechaFin: fechaFin ? `${fechaFin.getFullYear()}-${String(fechaFin.getMonth() + 1).padStart(2, '0')}-${String(fechaFin.getDate()).padStart(2, '0')}T${String(fechaFin.getHours()).padStart(2, '0')}:${String(fechaFin.getMinutes()).padStart(2, '0')}:00` : undefined,
-      montoTotal: totalCalculado,
-      descuentoAplicado: descuentoMonto,
-      observaciones: `${observaciones || ''} | Asistentes: ${asistentes}`,
-      serviciosAdicionales: serviciosSeleccionados,
-      tipoComprobante: datosFacturacion?.tipoComprobante || 'BOLETA',
-      documentoIdentidad: datosFacturacion?.documento || '',
-      razonSocial: datosFacturacion?.razonSocial || '',
-      direccion: datosFacturacion?.direccion || ''
-    };
-
-    try {
-      // 1. Crear Reserva
-      const resReserva = await apiService.crearReserva(reservaData);
-      const reservaCreada = resReserva.data;
-
-      // 2. Procesar Pago
-      const formaPagoId = metodoPago === 'card' ? 1 : 3;
-      const ref = metodoPago === 'card' 
-        ? 'CARD-' + pagoForm.nroTarjeta.slice(-4) + '-' + Math.floor(Math.random()*10000)
-        : pagoForm.referencia;
-      
-      const datosTarjeta = metodoPago === 'card' 
-        ? `${pagoForm.nombreTarjeta}|${pagoForm.nroTarjeta}|${pagoForm.exp}`
-        : null;
-
-      const pagoData = {
-        reservaId: reservaCreada.id,
-        formaPagoId: formaPagoId,
-        montoPago: totalCalculado,
-        referenciaTransaccion: ref,
-        datosTarjeta: datosTarjeta
-      };
-
-      try {
-        await apiService.procesarPago(pagoData);
-        setCargando(false);
-        setMostrarModalPago(false);
-        if (metodoPago === 'card') {
-          setSuccessMessage('¡Pago aprobado y reserva confirmada con éxito! Redireccionando...');
-        } else {
-          setSuccessMessage('¡Reserva creada! El pago por transferencia está pendiente de validación por administración. Redireccionando...');
-        }
-        setTimeout(() => {
-          navigate('/mis-reservas');
-        }, 2500);
-      } catch (err: unknown) {
-        setCargando(false);
-        setMostrarModalPago(false);
-        setErrorMessage('Reserva creada pero ' + ((err as any).response?.data?.error || 'error al procesar el pago.'));
-      }
-    } catch (err: unknown) {
-      setCargando(false);
-      setMostrarModalPago(false);
-      setErrorMessage((err as any).response?.data?.error || 'Error al guardar la reserva. Verifique disponibilidad.');
+      setErrorMessage(extractApiError(err));
     }
   };
 
@@ -429,6 +345,91 @@ const Reserva: React.FC = () => {
             {successMessage}
           </div>
         )}
+
+        {cargandoDatos && (
+          <div className="animate-fade-in">
+            <div className="d-flex gap-3 mb-4">
+              <div className="placeholder-glow col-6">
+                <span className="placeholder col-12 rounded-3" style={{ height: '48px' }}></span>
+              </div>
+              <div className="placeholder-glow col-6">
+                <span className="placeholder col-12 rounded-3" style={{ height: '48px' }}></span>
+              </div>
+            </div>
+            <div className="placeholder-glow mb-3">
+              <span className="placeholder col-4 rounded-3" style={{ height: '16px' }}></span>
+            </div>
+            <div className="placeholder-glow mb-4">
+              <span className="placeholder col-12 rounded-3" style={{ height: '120px' }}></span>
+            </div>
+            <div className="placeholder-glow mb-4">
+              <span className="placeholder col-12 rounded-3" style={{ height: '200px' }}></span>
+            </div>
+            <div className="d-flex gap-3">
+              <div className="placeholder-glow col-4">
+                <span className="placeholder col-12 rounded-3" style={{ height: '44px' }}></span>
+              </div>
+              <div className="placeholder-glow col-4">
+                <span className="placeholder col-12 rounded-3" style={{ height: '44px' }}></span>
+              </div>
+              <div className="placeholder-glow col-4">
+                <span className="placeholder col-12 rounded-3" style={{ height: '44px' }}></span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!cargandoDatos && (<><div className="mb-4 p-3 bg-light rounded-3 border">
+          <h6 className="fw-bold text-dark mb-2">
+            <i className="bi bi-calendar-check me-2 text-primary"></i>
+            Disponibilidad del espacio
+          </h6>
+          <CalendarioDisponibilidad
+            espacioId={espacioId}
+            fechaSeleccionada={fechaInicio}
+            fechaFin={fechaFin}
+            onFechaSeleccionada={(date) => {
+              if (!fechaInicio || fechaFin) {
+                const d = new Date(date);
+                d.setHours(8, 0, 0, 0);
+                setFechaInicio(d);
+                setFechaFin(null);
+              }
+            }}
+            onRangoSeleccionado={(inicio, fin) => {
+              const d1 = new Date(inicio);
+              d1.setHours(8, 0, 0, 0);
+              const d2 = new Date(fin);
+              d2.setHours(18, 0, 0, 0);
+              setFechaInicio(d1);
+              setFechaFin(d2);
+            }}
+            modo="reserva"
+          />
+          {verificandoDisponibilidad && (
+            <div className="text-center mt-2">
+              <div className="spinner-border spinner-border-sm text-primary" role="status">
+                <span className="visually-hidden">Verificando...</span>
+              </div>
+              <span className="small text-muted ms-2">Verificando disponibilidad...</span>
+            </div>
+          )}
+          {hayConflicto && (
+            <div className="alert alert-danger bg-danger bg-opacity-10 border-danger mt-2 mb-0 p-2 small d-flex align-items-center">
+              <i className="bi bi-exclamation-triangle-fill me-2 fs-5 text-danger"></i>
+              <span>
+                <strong>Conflicto detectado:</strong> El rango seleccionado se superpone con una reserva existente.
+                Por favor, elige otras fechas u horarios.
+              </span>
+            </div>
+          )}
+          {fechaInicio && fechaFin && !hayConflicto && !verificandoDisponibilidad && (
+            <div className="alert alert-success bg-success bg-opacity-10 border-success mt-2 mb-0 p-2 small d-flex align-items-center">
+              <i className="bi bi-check-circle-fill me-2 fs-5 text-success"></i>
+              <span>El espacio está disponible en el rango seleccionado.</span>
+            </div>
+          )}
+        </div>
 
         <form onSubmit={(e) => intentarReserva('ahora', e)}>
           <div className="row mb-3">
@@ -649,14 +650,15 @@ const Reserva: React.FC = () => {
 
           <div className="d-flex gap-3 flex-wrap">
             <button type="button" className="btn btn-outline-secondary flex-grow-1 py-2 fw-semibold" onClick={cancelar}>Cancelar</button>
-            <button type="button" className="btn btn-outline-primary flex-grow-1 py-2 fw-semibold" onClick={() => intentarReserva('luego')} disabled={cargando || totalCalculado <= 0 || (espacio ? asistentes > espacio.capacidad : false)}>
+            <button type="button" className="btn btn-outline-primary flex-grow-1 py-2 fw-semibold" onClick={() => intentarReserva('luego')} disabled={cargando || totalCalculado <= 0 || (espacio ? asistentes > espacio.capacidad : false) || hayConflicto}>
               Reservar y Pagar Después
             </button>
-            <button type="submit" className="btn btn-primary-custom flex-grow-1 py-2 fw-semibold" disabled={cargando || totalCalculado <= 0 || (espacio ? asistentes > espacio.capacidad : false)}>
+            <button type="submit" className="btn btn-primary-custom flex-grow-1 py-2 fw-semibold" disabled={cargando || totalCalculado <= 0 || (espacio ? asistentes > espacio.capacidad : false) || hayConflicto}>
               Pagar Ahora
             </button>
           </div>
         </form>
+      </>)}
       </div>
 
       <TermsModal 
@@ -665,157 +667,28 @@ const Reserva: React.FC = () => {
         onAccept={handleTermsAccept} 
       />
 
-      {/* Modal Pago */}
-      {mostrarModalPago && (
-        <div className="modal-overlay d-flex justify-content-center align-items-center animate-fade-in">
-          <div className="glass-panel p-5 col-md-8 col-lg-5 max-h-90 overflow-auto border-0 position-relative">
-            <button className="btn-close-custom" onClick={cerrarFlujoPago}><i className="bi bi-x-lg"></i></button>
-            
-            <h3 className="text-gradient fw-bold mb-3">Pasarela de Pago</h3>
-            <p className="text-muted small mb-4">Completa los datos de facturación para activar tu reserva inmediatamente.</p>
-
-            <div className="alert alert-dark bg-dark bg-opacity-75 border-secondary border-opacity-25 text-white mb-4 d-flex justify-content-between align-items-center">
-              <div>
-                <span className="small text-muted d-block">Monto a pagar</span>
-                <strong className="fs-4 text-gradient">S/. {totalCalculado.toFixed(2)}</strong>
-              </div>
-              <div className="text-end small text-muted">
-                <span>Servicio de Reserva</span>
-              </div>
-            </div>
-
-            <form onSubmit={confirmarPagoYCrearReserva}>
-              <div className="mb-4">
-                <label className="form-label text-muted small">Selecciona tu método de pago</label>
-                <div className="d-flex gap-3">
-                  <div className="flex-grow-1">
-                    <input type="radio" className="btn-check" name="metodoPago" id="card" value="card" checked={metodoPago === 'card'} onChange={() => setMetodoPago('card')} />
-                    <label className="btn btn-outline-primary w-100 py-3 d-flex flex-column align-items-center gap-1" htmlFor="card">
-                      <i className="bi bi-credit-card fs-4"></i>
-                      <span className="small fw-semibold">Tarjeta Crédito/Débito</span>
-                    </label>
-                  </div>
-                  <div className="flex-grow-1">
-                    <input type="radio" className="btn-check" name="metodoPago" id="transfer" value="transfer" checked={metodoPago === 'transfer'} onChange={() => setMetodoPago('transfer')} />
-                    <label className="btn btn-outline-primary w-100 py-3 d-flex flex-column align-items-center gap-1" htmlFor="transfer">
-                      <i className="bi bi-bank fs-4"></i>
-                      <span className="small fw-semibold">Transferencia</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              {metodoPago === 'card' && (
-                <div className="animate-fade-in">
-                  <div className="mb-3">
-                    <label className="form-label text-muted small">Nombre del Titular</label>
-                    <input type="text" className="form-control bg-light border-0 text-dark py-2" value={pagoForm.nombreTarjeta} onChange={(e) => setPagoForm({...pagoForm, nombreTarjeta: e.target.value})} required placeholder="Ej. Juan Pérez" />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label text-muted small">Número de Tarjeta</label>
-                    <div className="input-group">
-                      <span className="input-group-text bg-light border-0 text-muted"><i className="bi bi-credit-card-fill"></i></span>
-                      <input type="text" className="form-control bg-light border-0 text-dark py-2" value={pagoForm.nroTarjeta} onChange={formatCardNumber} required placeholder="4000 1234 5678 9010" maxLength={19} />
-                    </div>
-                  </div>
-                  <div className="row">
-                    <div className="col-6 mb-4">
-                      <label className="form-label text-muted small">Expiración</label>
-                      <input type="text" className="form-control bg-light border-0 text-dark py-2" value={pagoForm.exp} onChange={formatExpiry} required placeholder="MM/AA" maxLength={5} />
-                    </div>
-                    <div className="col-6 mb-4">
-                      <label className="form-label text-muted small">CVV</label>
-                      <input type="password" className="form-control bg-light border-0 text-dark py-2" value={pagoForm.cvv} onChange={(e) => setPagoForm({...pagoForm, cvv: e.target.value})} required placeholder="•••" maxLength={4} />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {metodoPago === 'transfer' && (
-                <div className="animate-fade-in mb-4">
-                  <div className="p-3 bg-light rounded-3 mb-3 border">
-                    <span className="small text-muted d-block">Cuenta de Ahorros BCP (Soles)</span>
-                    <strong className="text-dark">193-98765432-0-12</strong>
-                    <span className="small text-muted d-block mt-2">CCI (Transferencia interbancaria)</span>
-                    <strong className="text-dark">002-19309876543201214</strong>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label text-muted small">Número de Operación / Referencia</label>
-                    <input type="text" className="form-control bg-light border-0 text-dark py-2" value={pagoForm.referencia} onChange={(e) => setPagoForm({...pagoForm, referencia: e.target.value})} required placeholder="Ej. 981240" />
-                  </div>
-                </div>
-              )}
-
-              <div className="d-flex gap-3 mt-4">
-                <button type="button" className="btn btn-outline-secondary w-50" onClick={cerrarFlujoPago}>Cancelar</button>
-                <button type="submit" className="btn btn-primary-custom w-50 py-2 fw-semibold" disabled={cargando}>
-                  {cargando && <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>}
-                  Pagar y Reservar
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {/* Modal Pago — ReservationPaymentModal */}
+      {mostrarModalPago && datosFacturacion && (
+        <ReservationPaymentModal
+          reservaData={{
+            usuarioId,
+            espacioId,
+            fechaInicio: fechaInicio ? `${fechaInicio.getFullYear()}-${String(fechaInicio.getMonth() + 1).padStart(2, '0')}-${String(fechaInicio.getDate()).padStart(2, '0')}T${String(fechaInicio.getHours()).padStart(2, '0')}:${String(fechaInicio.getMinutes()).padStart(2, '0')}:00` : undefined,
+            fechaFin: fechaFin ? `${fechaFin.getFullYear()}-${String(fechaFin.getMonth() + 1).padStart(2, '0')}-${String(fechaFin.getDate()).padStart(2, '0')}T${String(fechaFin.getHours()).padStart(2, '0')}:${String(fechaFin.getMinutes()).padStart(2, '0')}:00` : undefined,
+            montoTotal: totalCalculado,
+            descuentoAplicado: descuentoMonto,
+            observaciones,
+            asistentes,
+            serviciosAdicionales: serviciosSeleccionados
+          }}
+          datosFacturacion={datosFacturacion}
+          onClose={() => setMostrarModalPago(false)}
+        />
       )}
 
       {/* MODAL DE DETALLES DE SERVICIO */}
       {servicioDetalleModal && (
-        <div className="modal-overlay d-flex align-items-center justify-content-center animate-fade-in" style={{ zIndex: 3000 }}>
-          <div className="bg-white rounded-4 shadow-lg p-0 max-h-90 overflow-auto" style={{ width: '100%', maxWidth: '500px', position: 'relative' }}>
-            <button className="btn-close-custom bg-white shadow-sm rounded-circle p-2 d-flex align-items-center justify-content-center" style={{ width: '36px', height: '36px', top: '10px', right: '10px' }} onClick={() => setServicioDetalleModal(null)}>
-              <i className="bi bi-x-lg" style={{ fontSize: '1rem' }}></i>
-            </button>
-            
-            {servicioDetalleModal.imagenUrl ? (
-              <div style={{ 
-                height: '200px', 
-                backgroundColor: '#f8f9fa', 
-                backgroundImage: `url(${(() => {
-                  const url = servicioDetalleModal.imagenUrl;
-                  const driveMatch = url.match(new RegExp('/d/([a-zA-Z0-9_-]+)'));
-                  return driveMatch ? `https://lh3.googleusercontent.com/d/${driveMatch[1]}` : url;
-                })()})`,  
-                backgroundSize: 'cover', 
-                backgroundPosition: 'center', 
-                borderTopLeftRadius: '1rem', 
-                borderTopRightRadius: '1rem' 
-              }}>
-              </div>
-            ) : (
-              <div className="d-flex align-items-center justify-content-center bg-light" style={{ height: '120px', borderTopLeftRadius: '1rem', borderTopRightRadius: '1rem' }}>
-                <i className="bi bi-box-seam text-secondary" style={{ fontSize: '3rem', opacity: 0.5 }}></i>
-              </div>
-            )}
-
-            <div className="p-4">
-              <span className="badge bg-primary bg-opacity-10 text-primary mb-2 px-3 py-2 rounded-pill">S/. {servicioDetalleModal.precioBase.toFixed(2)} c/u</span>
-              <h4 className="fw-bold text-dark mb-2">{servicioDetalleModal.nombre}</h4>
-              <p className="text-muted small mb-4">{servicioDetalleModal.descripcion}</p>
-
-              {servicioDetalleModal.caracteristicasDetalle && (
-                <div className="mb-4">
-                  <h6 className="fw-bold text-dark"><i className="bi bi-list-check text-success me-2"></i>Características</h6>
-                  <div className="bg-light p-3 rounded-3 small text-muted" style={{ whiteSpace: 'pre-line' }}>
-                    {servicioDetalleModal.caracteristicasDetalle}
-                  </div>
-                </div>
-              )}
-
-              {servicioDetalleModal.advertenciasDevolucion && (
-                <div className="mb-2">
-                  <h6 className="fw-bold text-danger"><i className="bi bi-exclamation-triangle-fill me-2"></i>Advertencias de Uso/Devolución</h6>
-                  <div className="bg-danger bg-opacity-10 text-danger p-3 rounded-3 small border border-danger border-opacity-25" style={{ whiteSpace: 'pre-line' }}>
-                    {servicioDetalleModal.advertenciasDevolucion}
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            <div className="p-3 border-top bg-light d-flex justify-content-end" style={{ borderBottomLeftRadius: '1rem', borderBottomRightRadius: '1rem' }}>
-              <button className="btn btn-primary px-4 rounded-pill" onClick={() => setServicioDetalleModal(null)}>Entendido</button>
-            </div>
-          </div>
-        </div>
+        <ServiceDetailModal servicio={servicioDetalleModal} onClose={() => setServicioDetalleModal(null)} />
       )}
 
       <style>{`

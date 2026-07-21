@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
+import { extractApiError } from '../types';
 
 const Inicio: React.FC = () => {
   const navigate = useNavigate();
   const [espaciosDestacados, setEspaciosDestacados] = useState<any[]>([]);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     const fetchDestacados = async () => {
@@ -14,7 +16,7 @@ const Inicio: React.FC = () => {
           setEspaciosDestacados(response.data.slice(0, 3));
         }
       } catch (err) {
-        console.error("Error cargando espacios destacados", err);
+        setError(extractApiError(err));
       }
     };
     fetchDestacados();
@@ -98,6 +100,8 @@ const Inicio: React.FC = () => {
           </div>
         </div>
       </section>
+
+      {error && <div className="alert alert-danger text-center m-3 small">{error}</div>}
 
       {/* Espacios Destacados Section */}
       {espaciosDestacados.length > 0 && (

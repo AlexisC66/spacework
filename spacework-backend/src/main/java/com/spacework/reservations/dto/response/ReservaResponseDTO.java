@@ -67,7 +67,7 @@ public class ReservaResponseDTO {
     @Data
     public static class ServicioAdicionalDTO {
         private Integer id;
-        private String nombreEstado;
+        private String nombre;
         private BigDecimal precioBase;
     }
 }

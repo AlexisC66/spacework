@@ -32,8 +32,9 @@ const Pagos: React.FC = () => {
     try {
       const response = await apiService.getTodosPagos();
       const data = response.data;
-      if (data && data.length > 0) {
-        const sorted = data.sort((a: any, b: any) => b.id - a.id);
+      const pagosArray = Array.isArray(data) ? data : (data?.content || []);
+      if (pagosArray.length > 0) {
+        const sorted = pagosArray.sort((a: any, b: any) => b.id - a.id);
         setPagos(sorted.map((p: any) => ({
           id: p.id,
           factura: p.referenciaTransaccion || ('PAG-' + p.id),

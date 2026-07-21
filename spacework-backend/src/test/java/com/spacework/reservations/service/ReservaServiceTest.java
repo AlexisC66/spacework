@@ -6,6 +6,7 @@ import com.spacework.reservations.model.Reserva;
 import com.spacework.crm.model.Usuario;
 import com.spacework.reservations.repository.EstadoReservaRepository;
 import com.spacework.reservations.repository.ReservaRepository;
+import com.spacework.core.monitoring.BusinessMetricsService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,6 +17,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -42,6 +44,9 @@ public class ReservaServiceTest {
 
     @Mock
     private com.spacework.reservations.repository.ReservaServicioRepository reservaServicioRepository;
+
+    @Mock
+    private BusinessMetricsService metricsService;
 
     @InjectMocks
     private ReservaService reservaService;
@@ -97,7 +102,7 @@ public class ReservaServiceTest {
         when(reservaRepository.save(any(Reserva.class))).thenReturn(mockSavedReserva);
 
         // Act
-        Reserva result = reservaService.crearReserva(usuario, espacio, inicio, fin, new BigDecimal("100.00"), BigDecimal.ZERO, "Ninguna", null, "BOLETA", "12345678", "", "");
+        Reserva result = reservaService.crearReserva(usuario, espacio, inicio, fin, new BigDecimal("100.00"), BigDecimal.ZERO, "Ninguna", null, new HashMap<>(), "BOLETA", "12345678", "", "");
 
         // Assert
         assertNotNull(result);
@@ -118,7 +123,7 @@ public class ReservaServiceTest {
 
         // Act & Assert
         Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            reservaService.crearReserva(usuario, espacio, inicio, fin, new BigDecimal("100.00"), BigDecimal.ZERO, "Ninguna", null, "BOLETA", "12345678", "", "");
+            reservaService.crearReserva(usuario, espacio, inicio, fin, new BigDecimal("100.00"), BigDecimal.ZERO, "Ninguna", null, new HashMap<>(), "BOLETA", "12345678", "", "");
         });
 
         assertEquals("El espacio ya se encuentra reservado en el rango de tiempo seleccionado.", exception.getMessage());

@@ -4,11 +4,17 @@ import com.spacework.reservations.model.Reserva;
 import com.spacework.crm.model.Usuario;
 import com.spacework.crm.model.Empresa;
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "Facturas", schema = "Reservas")
+@Getter
+@Setter
+@NoArgsConstructor
 public class Factura {
 
     @Id
@@ -49,29 +55,7 @@ public class Factura {
     @Column(name = "Estado", nullable = false)
     private boolean estado = true;
 
-    public Factura() {}
-
-    // Getters y Setters
-    public Integer getId() { return id; }
-    public void setId(Integer id) { this.id = id; }
-    public String getNumeroFactura() { return numeroFactura; }
-    public void setNumeroFactura(String numeroFactura) { this.numeroFactura = numeroFactura; }
-    public Reserva getReserva() { return reserva; }
-    public void setReserva(Reserva reserva) { this.reserva = reserva; }
-    public Usuario getUsuario() { return usuario; }
-    public void setUsuario(Usuario usuario) { this.usuario = usuario; }
-    public Empresa getEmpresa() { return empresa; }
-    public void setEmpresa(Empresa empresa) { this.empresa = empresa; }
-    public LocalDateTime getFechaEmision() { return fechaEmision; }
-    public void setFechaEmision(LocalDateTime fechaEmision) { this.fechaEmision = fechaEmision; }
-    public BigDecimal getSubTotal() { return subTotal; }
-    public void setSubTotal(BigDecimal subTotal) { this.subTotal = subTotal; }
-    public BigDecimal getTotalImpuestos() { return totalImpuestos; }
-    public void setTotalImpuestos(BigDecimal totalImpuestos) { this.totalImpuestos = totalImpuestos; }
-    public BigDecimal getTotalGeneral() { return totalGeneral; }
-    public void setTotalGeneral(BigDecimal totalGeneral) { this.totalGeneral = totalGeneral; }
-    public String getEstadoFactura() { return estadoFactura; }
-    public void setEstadoFactura(String estadoFactura) { this.estadoFactura = estadoFactura; }
-    public boolean isEstado() { return estado; }
-    public void setEstado(boolean estado) { this.estado = estado; }
+    @Version
+    @Column(name = "Version")
+    private Long version;
 }

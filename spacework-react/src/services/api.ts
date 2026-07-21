@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -96,6 +96,12 @@ export const apiService = {
   agregarServicioExtraReserva: (id: number, data: unknown[]) => api.post(`/reservas/${id}/agregar-servicio`, data),
   cancelarReserva: (id: number) => api.put(`/reservas/${id}/cancelar`),
 
+  // availability Endpoints
+  getDisponibilidad: (espacioId: number, desde: string, hasta: string) =>
+    api.get(`/espacios/${espacioId}/disponibilidad?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`),
+  getDisponibilidadGeneral: (desde: string, hasta: string) =>
+    api.get(`/espacios/disponibilidad?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`),
+
   // payments Endpoints
   procesarPago: (pagoData: Record<string, unknown>) => api.post(`/pagos/procesar`, pagoData),
   getTodosPagos: () => api.get(`/pagos`),
@@ -109,6 +115,11 @@ export const apiService = {
   getPromedioEspacio: (espacioId: number) => api.get(`/resenas/espacio/${espacioId}`),
   chequearResenaReserva: (reservaId: number) => api.get(`/resenas/reserva/${reservaId}`),
   getResenasDashboard: () => api.get(`/resenas/admin/dashboard`),
+
+  // Password Reset
+  forgotPassword: (email: string) => api.post(`/auth/forgot-password`, { email }),
+  validateResetToken: (token: string) => api.get(`/auth/validate-reset-token/${token}`),
+  resetPassword: (token: string, password: string) => api.post(`/auth/reset-password`, { token, password }),
 
   // Auditoria
   getAuditoria: () => api.get(`/auditoria`)

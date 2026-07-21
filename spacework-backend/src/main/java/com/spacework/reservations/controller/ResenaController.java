@@ -105,6 +105,7 @@ public class ResenaController {
     }
 
     @GetMapping("/admin/dashboard")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN', 'SUPERADMIN')")
     public ResponseEntity<?> obtenerResenasAdmin() {
         List<Resena> todas = resenaRepository.findAllByOrderByFechaResenaDesc();
         return ResponseEntity.ok(todas.stream().map(ResenaResponseDTO::new).collect(Collectors.toList()));

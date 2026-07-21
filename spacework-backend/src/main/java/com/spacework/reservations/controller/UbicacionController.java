@@ -1,64 +1,53 @@
 package com.spacework.reservations.controller;
 
 import com.spacework.reservations.model.Ubicacion;
-import com.spacework.reservations.repository.UbicacionRepository;
+import com.spacework.reservations.service.UbicacionService;
+import com.spacework.auditoria.aop.Auditable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/ubicaciones")
-
 public class UbicacionController {
 
+    private final UbicacionService ubicacionService;
+
     @Autowired
-    private UbicacionRepository ubicacionRepository;
+    public UbicacionController(UbicacionService ubicacionService) {
+        this.ubicacionService = ubicacionService;
+    }
 
     @GetMapping
     public List<Ubicacion> getAll() {
-        return ubicacionRepository.findByEstadoTrue();
+        return ubicacionService.obtenerActivas();
     }
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPERADMIN')")
+    @Auditable(accion = "CREAR_UBICACION", entidad = "Ubicaciones")
     public Ubicacion create(@RequestBody Ubicacion ubicacion) {
-        ubicacion.setEstado(true);
-        return ubicacionRepository.save(ubicacion);
+        return ubicacionService.crear(ubicacion);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPERADMIN')")
+    @Auditable(accion = "ACTUALIZAR_UBICACION", entidad = "Ubicaciones")
     public ResponseEntity<Ubicacion> update(@PathVariable Integer id, @RequestBody Ubicacion ubicacionData) {
-        Optional<Ubicacion> opt = ubicacionRepository.findById(id);
-        if (opt.isPresent()) {
-            Ubicacion ubicacion = opt.get();
-            ubicacion.setNombreUbicacion(ubicacionData.getNombreUbicacion());
-            ubicacion.setDireccion(ubicacionData.getDireccion());
-            ubicacion.setCiudad(ubicacionData.getCiudad());
-            ubicacion.setPais(ubicacionData.getPais());
-            ubicacion.setLatitud(ubicacionData.getLatitud());
-            ubicacion.setLongitud(ubicacionData.getLongitud());
-            ubicacion.setUrlGoogleMaps(ubicacionData.getUrlGoogleMaps());
-            ubicacion.setEstado(ubicacionData.isEstado());
-            return ResponseEntity.ok(ubicacionRepository.save(ubicacion));
-        }
-        return ResponseEntity.notFound().build();
+        return ubicacionService.actualizar(id, ubicacionData)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPERADMIN')")
+    @Auditable(accion = "ELIMINAR_UBICACION", entidad = "Ubicaciones")
     public ResponseEntity<Void> delete(@PathVariable Integer id) {
-        Optional<Ubicacion> opt = ubicacionRepository.findById(id);
-        if (opt.isPresent()) {
-            Ubicacion ubicacion = opt.get();
-            ubicacion.setEstado(false);
-            ubicacionRepository.save(ubicacion);
-            return ResponseEntity.noContent().build();
-        }
-        return ResponseEntity.notFound().build();
+        return ubicacionService.eliminar(id)
+                ? ResponseEntity.noContent().build()
+                : ResponseEntity.notFound().build();
     }
 }

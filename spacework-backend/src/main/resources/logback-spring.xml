@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
-    <!-- Carpeta de logs -->
     <property name="LOGS" value="./logs" />
 
-    <!-- Consola Appender -->
     <appender name="Console" class="ch.qos.logback.core.ConsoleAppender">
         <layout class="ch.qos.logback.classic.PatternLayout">
             <Pattern>
@@ -13,28 +11,44 @@
         </layout>
     </appender>
 
-    <!-- Archivo Appender con rotación diaria -->
     <appender name="RollingFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOGS}/spacework.log</file>
         <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
             <Pattern>%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n</Pattern>
         </encoder>
-
         <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <!-- Nombre de archivo rotado diario -->
             <fileNamePattern>${LOGS}/archived/spacework-%d{yyyy-MM-dd}.log</fileNamePattern>
-            <!-- Guardar logs por 30 días -->
             <maxHistory>30</maxHistory>
         </rollingPolicy>
     </appender>
 
-    <!-- Nivel de log para el paquete del proyecto -->
-    <logger name="com.spacework" level="DEBUG" additivity="false">
-        <appender-ref ref="Console" />
-        <appender-ref ref="RollingFile" />
-    </logger>
+    <appender name="JsonFile" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOGS}/spacework.json</file>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <includeMdc>true</includeMdc>
+            <includeContext>false</includeContext>
+            <customFields>{"application":"spacework-backend","environment":"${spring.profiles.active:-default}"}</customFields>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+            <fileNamePattern>${LOGS}/archived/spacework-%d{yyyy-MM-dd}.json</fileNamePattern>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+    </appender>
 
-    <!-- Nivel raíz de log -->
+    <springProfile name="dev">
+        <logger name="com.spacework" level="DEBUG" additivity="false">
+            <appender-ref ref="Console" />
+            <appender-ref ref="RollingFile" />
+        </logger>
+    </springProfile>
+    <springProfile name="!dev">
+        <logger name="com.spacework" level="INFO" additivity="false">
+            <appender-ref ref="Console" />
+            <appender-ref ref="RollingFile" />
+            <appender-ref ref="JsonFile" />
+        </logger>
+    </springProfile>
+
     <root level="INFO">
         <appender-ref ref="Console" />
         <appender-ref ref="RollingFile" />

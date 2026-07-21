@@ -58,6 +58,12 @@ public class JwtFilter extends OncePerRequestFilter {
             }
         }
 
+        // Si hay token pero es inválido/expirado, retornar 401
+        if (token != null && email == null) {
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token inválido o expirado");
+            return;
+        }
+
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             Optional<Usuario> usuarioOpt = usuarioRepository.findByCorreoElectronico(email);
             if (usuarioOpt.isPresent()) {

@@ -1,10 +1,16 @@
 package com.spacework.core.model;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 
 @Entity
 @Table(name = "Impuestos", schema = "dbo")
+@Getter
+@Setter
+@NoArgsConstructor
 public class Impuesto {
 
     @Id
@@ -20,18 +26,4 @@ public class Impuesto {
 
     @Column(name = "Estado", nullable = false)
     private boolean estado = true;
-
-    public Impuesto() {}
-
-    public Integer getId() { return id; }
-    public void setId(Integer id) { this.id = id; }
-
-    public String getNombre() { return nombre; }
-    public void setNombre(String nombre) { this.nombre = nombre; }
-
-    public BigDecimal getPorcentaje() { return porcentaje; }
-    public void setPorcentaje(BigDecimal porcentaje) { this.porcentaje = porcentaje; }
-
-    public boolean isEstado() { return estado; }
-    public void setEstado(boolean estado) { this.estado = estado; }
 }

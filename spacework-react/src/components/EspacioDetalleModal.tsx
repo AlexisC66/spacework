@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
+import type { Espacio } from '../types';
 
 interface EspacioDetalleModalProps {
-  espacio: any;
+  espacio: Espacio;
   resenas: any[];
   onClose: () => void;
   onReservar: (espacioId: number) => void;
@@ -68,7 +69,7 @@ const EspacioDetalleModal: React.FC<EspacioDetalleModalProps> = ({
                   <i className="bi bi-chevron-right"></i>
                 </button>
                 <div className="position-absolute bottom-0 start-50 translate-middle-x mb-3 d-flex gap-2">
-                  {fotos.map((_: any, idx: number) => (
+                  {fotos.map((_: unknown, idx: number) => (
                     <div 
                       key={idx} 
                       className={`rounded-circle bg-white ${idx === fotoActivaIndex ? 'opacity-100' : 'opacity-50'}`}

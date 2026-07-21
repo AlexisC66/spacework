@@ -18,6 +18,7 @@ public class EmpresaService {
         this.empresaRepository = empresaRepository;
     }
 
+    @Transactional(readOnly = true)
     public List<Empresa> obtenerTodasLasEmpresas() {
         return empresaRepository.findByEstadoTrue();
     }

@@ -3,6 +3,7 @@ package com.spacework.crm.service;
 import com.spacework.crm.model.Rol;
 import com.spacework.crm.model.TipoDocumento;
 import com.spacework.crm.model.Usuario;
+import com.spacework.crm.dto.request.UsuarioActualizacionDTO;
 import com.spacework.crm.repository.RolRepository;
 import com.spacework.crm.repository.TipoDocumentoRepository;
 import com.spacework.crm.repository.UsuarioRepository;
@@ -121,14 +122,22 @@ public class UsuarioService {
     }
 
     @Transactional
-    public Usuario actualizarPerfil(Integer id, Usuario usuarioActualizado) {
+    public Usuario actualizarPerfil(Integer id, UsuarioActualizacionDTO datosActualizacion) {
         Usuario usuario = usuarioRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
-        
-        usuario.setNombre(usuarioActualizado.getNombre());
-        usuario.setApellidoPaterno(usuarioActualizado.getApellidoPaterno());
-        usuario.setApellidoMaterno(usuarioActualizado.getApellidoMaterno());
-        usuario.setTelefono(usuarioActualizado.getTelefono());
+
+        if (datosActualizacion.getNombre() != null) {
+            usuario.setNombre(datosActualizacion.getNombre());
+        }
+        if (datosActualizacion.getApellidoPaterno() != null) {
+            usuario.setApellidoPaterno(datosActualizacion.getApellidoPaterno());
+        }
+        if (datosActualizacion.getApellidoMaterno() != null) {
+            usuario.setApellidoMaterno(datosActualizacion.getApellidoMaterno());
+        }
+        if (datosActualizacion.getTelefono() != null) {
+            usuario.setTelefono(datosActualizacion.getTelefono());
+        }
         
         return usuarioRepository.save(usuario);
     }

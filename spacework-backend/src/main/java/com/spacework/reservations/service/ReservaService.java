@@ -11,6 +11,8 @@ import com.spacework.reservations.model.Precio;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.LocalDate;
@@ -22,6 +24,7 @@ import com.spacework.reservations.model.ReservaServicio;
 import com.spacework.reservations.repository.ServicioAdicionalRepository;
 import com.spacework.reservations.repository.ReservaServicioRepository;
 import com.spacework.auditoria.aop.Auditable;
+import com.spacework.core.monitoring.BusinessMetricsService;
 
 @Service
 public class ReservaService {
@@ -32,6 +35,7 @@ public class ReservaService {
     private final ServicioAdicionalRepository servicioAdicionalRepository;
     private final ReservaServicioRepository reservaServicioRepository;
     private final PrecioRepository precioRepository;
+    private final BusinessMetricsService metricsService;
 
     @Autowired
     public ReservaService(ReservaRepository reservaRepository, 
@@ -39,18 +43,20 @@ public class ReservaService {
                           EmailService emailService,
                           ServicioAdicionalRepository servicioAdicionalRepository,
                           ReservaServicioRepository reservaServicioRepository,
-                          PrecioRepository precioRepository) {
+                          PrecioRepository precioRepository,
+                          BusinessMetricsService metricsService) {
         this.reservaRepository = reservaRepository;
         this.estadoReservaRepository = estadoReservaRepository;
         this.emailService = emailService;
         this.servicioAdicionalRepository = servicioAdicionalRepository;
         this.reservaServicioRepository = reservaServicioRepository;
         this.precioRepository = precioRepository;
+        this.metricsService = metricsService;
     }
 
     @Transactional
     @Auditable(accion = "CREAR_RESERVA", entidad = "Reservas")
-    public Reserva crearReserva(Usuario usuario, Espacio espacio, LocalDateTime inicio, LocalDateTime fin, BigDecimal montoTotal, BigDecimal descuentoAplicado, String observaciones, Map<Integer, Integer> serviciosAdicionales, String tipoComprobante, String documentoIdentidad, String razonSocial, String direccion) {
+    public Reserva crearReserva(Usuario usuario, Espacio espacio, LocalDateTime inicio, LocalDateTime fin, BigDecimal montoTotal, BigDecimal descuentoAplicado, String observaciones, Integer asistentes, Map<Integer, Integer> serviciosAdicionales, String tipoComprobante, String documentoIdentidad, String razonSocial, String direccion) {
         // Primero nos aseguramos de que no nos estén enviando datos nulos o fechas imposibles
         if (inicio.isAfter(fin) || inicio.isEqual(fin)) {
             throw new IllegalArgumentException("La fecha de inicio debe ser anterior a la fecha de fin.");
@@ -78,7 +84,7 @@ public class ReservaService {
                 .orElseThrow(() -> new IllegalStateException("Estado PENDIENTE no configurado en la base de datos."));
 
         // Calculamos el precio real en el backend, ignorando el montoTotal del frontend por seguridad
-        BigDecimal montoCalculadoSeguro = calcularMontoSeguro(espacio, inicio, fin, observaciones, serviciosAdicionales);
+        BigDecimal montoCalculadoSeguro = calcularMontoSeguro(espacio, inicio, fin, asistentes, serviciosAdicionales);
 
         // Armamos el objeto de la reserva
         Reserva reserva = new Reserva();
@@ -111,6 +117,12 @@ public class ReservaService {
                 if (cantidad > 0) {
                     ServicioAdicional sa = servicioAdicionalRepository.findById(servicioId).orElse(null);
                     if (sa != null) {
+                        // Verificar stock disponible
+                        if (sa.getStockTotal() != null && cantidad > sa.getStockTotal()) {
+                            throw new IllegalArgumentException(
+                                "Stock insuficiente para '" + sa.getNombre() +
+                                "'. Disponible: " + sa.getStockTotal() + ", solicitado: " + cantidad);
+                        }
                         ReservaServicio rs = new ReservaServicio();
                         rs.setReserva(nuevaReserva);
                         rs.setServicioAdicional(sa);
@@ -124,31 +136,41 @@ public class ReservaService {
             }
         }
 
-        // Disparamos el correo de confirmación de forma síncrona (TODO: podríamos pasarlo a RabbitMQ después)
-        String subject = "Confirmación de Reserva - SpaceWork (" + nuevaReserva.getCodigoReserva() + ")";
-        String body = String.format(
-                "Hola %s,\n\nTu reserva para el espacio '%s' ha sido registrada exitosamente.\n\n" +
-                "Detalles de la Reserva:\n" +
-                "- Código: %s\n" +
-                "- Inicio: %s\n" +
-                "- Fin: %s\n" +
-                "- Monto Total: S/. %s\n" +
-                "- Estado: %s\n\n" +
-                "Gracias por utilizar SpaceWork.\n",
-                usuario.getNombre(),
-                espacio.getNombreEspacio(),
-                nuevaReserva.getCodigoReserva(),
-                nuevaReserva.getFechaInicioReserva(),
-                nuevaReserva.getFechaFinReserva(),
-                nuevaReserva.getMontoTotal(),
-                nuevaReserva.getEstadoReserva().getNombreEstado()
-        );
-        emailService.sendEmail(usuario.getCorreoElectronico(), subject, body);
+        // Enviar email después del commit para evitar enviar notificaciones
+        // de reservas que luego hagan rollback
+        final String codigoReserva = nuevaReserva.getCodigoReserva();
+        final String emailUsuario = usuario.getCorreoElectronico();
+        final String nombreUsuario = usuario.getNombre();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                String subject = "Confirmación de Reserva - SpaceWork (" + codigoReserva + ")";
+                String body = String.format(
+                        "Hola %s,\n\nTu reserva para el espacio '%s' ha sido registrada exitosamente.\n\n" +
+                        "Detalles de la Reserva:\n" +
+                        "- Código: %s\n" +
+                        "- Inicio: %s\n" +
+                        "- Fin: %s\n" +
+                        "- Monto Total: S/. %s\n" +
+                        "- Estado: %s\n\n" +
+                        "Gracias por utilizar SpaceWork.\n",
+                        nombreUsuario,
+                        espacio.getNombreEspacio(),
+                        codigoReserva,
+                        nuevaReserva.getFechaInicioReserva(),
+                        nuevaReserva.getFechaFinReserva(),
+                        nuevaReserva.getMontoTotal(),
+                        nuevaReserva.getEstadoReserva().getNombreEstado()
+                );
+                emailService.sendEmail(emailUsuario, subject, body);
+            }
+        });
 
+        metricsService.incrementarReservasCreadas();
         return nuevaReserva;
     }
 
-    private BigDecimal calcularMontoSeguro(Espacio espacio, LocalDateTime inicio, LocalDateTime fin, String observaciones, Map<Integer, Integer> serviciosAdicionales) {
+    private BigDecimal calcularMontoSeguro(Espacio espacio, LocalDateTime inicio, LocalDateTime fin, Integer asistentes, Map<Integer, Integer> serviciosAdicionales) {
         Precio precioObj = precioRepository.findFirstByEspacioIdAndEstadoTrue(espacio.getId()).orElse(null);
         BigDecimal precioBase = precioObj != null && precioObj.getMonto() != null ? precioObj.getMonto() : BigDecimal.ZERO;
         BigDecimal descBase = precioObj != null && precioObj.getDescuento() != null ? precioObj.getDescuento() : BigDecimal.ZERO;
@@ -194,15 +216,6 @@ public class ReservaService {
                         totalSrv = totalSrv.add(sa.getPrecioBase().multiply(BigDecimal.valueOf(entry.getValue())).multiply(BigDecimal.valueOf(diasEfectivos)));
                     }
                 }
-            }
-        }
-
-        int asistentes = 1;
-        if (observaciones != null && observaciones.contains("Asistentes: ")) {
-            String[] parts = observaciones.split("Asistentes: ");
-            if (parts.length > 1) {
-                try { asistentes = Integer.parseInt(parts[1].trim().split(" ")[0]); } 
-                catch (Exception ignored) {}
             }
         }
 

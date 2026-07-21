@@ -9,7 +9,13 @@ import lombok.Setter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "Reservas", schema = "Reservas")
+@Table(name = "Reservas", schema = "Reservas",
+       indexes = {
+           @Index(name = "idx_reserva_fechas", columnList = "FechaInicioReserva, FechaFinReserva"),
+           @Index(name = "idx_reserva_usuario", columnList = "UsuarioID"),
+           @Index(name = "idx_reserva_espacio", columnList = "EspacioID"),
+           @Index(name = "idx_reserva_estado", columnList = "EstadoReservaID")
+       })
 @Getter
 @Setter
 @NoArgsConstructor
@@ -23,11 +29,11 @@ public class Reserva {
     @Column(name = "CodigoReserva", length = 20, nullable = false, unique = true)
     private String codigoReserva;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "UsuarioID", nullable = false)
     private Usuario usuario;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "EspacioID", nullable = false)
     private Espacio espacio;
 
@@ -40,7 +46,7 @@ public class Reserva {
     @Column(name = "FechaFinReserva", nullable = false)
     private LocalDateTime fechaFinReserva;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "EstadoReservaID", nullable = false)
     private EstadoReserva estadoReserva;
 
@@ -53,7 +59,8 @@ public class Reserva {
     @Column(name = "DescuentoAplicado", precision = 10, scale = 2, nullable = false)
     private BigDecimal descuentoAplicado = BigDecimal.ZERO;
 
-    @Column(name = "Observaciones", columnDefinition = "TEXT")
+    @Lob
+    @Column(name = "Observaciones", columnDefinition = "NVARCHAR(MAX)")
     private String observaciones;
 
     @Column(name = "TipoComprobante", length = 20)
@@ -75,7 +82,7 @@ public class Reserva {
     @Column(name = "Version")
     private Long version;
 
-    @OneToMany(mappedBy = "reserva", fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "reserva", fetch = FetchType.LAZY)
     private java.util.List<ReservaServicio> reservaServicios;
 
 }

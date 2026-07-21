@@ -1,6 +1,3 @@
--- Script de Datos de Prueba para SpaceWork (SQL Server)
--- Este script inserta datos básicos para poder probar el sistema.
--- Nota: Se asume que las tablas están vacías y los IDs autogenerados empezarán en 1.
 
 USE SpaceWork;
 GO

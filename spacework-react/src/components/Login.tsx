@@ -45,7 +45,7 @@ const Login: React.FC = () => {
       const response = await apiService.login(loginEmail, loginPass);
       const data = response.data;
       
-      login(data.usuario, data.accessToken);
+      login(data.usuario, data.token);
       
       setSuccessMessage('Ingreso exitoso. Redireccionando...');
       setTimeout(() => {
@@ -173,6 +173,12 @@ const Login: React.FC = () => {
               <button type="submit" className="btn btn-primary-custom w-100 py-2 fw-bold mb-2">
                 Iniciar Sesión
               </button>
+              <div className="text-center mt-2">
+                <a href="/forgot-password" className="text-decoration-none small" style={{ color: 'var(--text-muted)' }}
+                   onClick={(e) => { e.preventDefault(); navigate('/forgot-password'); }}>
+                  <i className="bi bi-question-circle me-1"></i> ¿Olvidaste tu contraseña?
+                </a>
+              </div>
             </form>
           ) : (
             <form onSubmit={handleRegister} className="animate-fade-in">

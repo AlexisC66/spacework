@@ -17,18 +17,47 @@ export interface Usuario {
 
 export interface TipoEspacio {
     id: number;
-    nombre: string;
+    nombreTipo: string;
 }
 
 export interface Ubicacion {
     id: number;
-    nombreSede: string;
+    nombreUbicacion: string;
     direccion: string;
     ciudad: string;
     pais: string;
     tasaIgv: number;
     exoneradoIgv: boolean;
     estado: boolean;
+}
+
+export interface SlotDTO {
+    reservaId: number;
+    codigoReserva: string;
+    inicio: string;
+    fin: string;
+}
+
+export interface DisponibilidadResponse {
+    espacioId: number;
+    nombreEspacio: string;
+    horaApertura: string;
+    horaCierre: string;
+    ocupaciones: SlotDTO[];
+}
+
+export interface FotoEspacio {
+    id?: number;
+    urlFoto: string;
+    esPrincipal: boolean;
+}
+
+export interface Caracteristica {
+    id: number;
+    nombreCaracteristica: string;
+    icono?: string;
+    tipo?: string;
+    estado?: boolean;
 }
 
 export interface Espacio {
@@ -48,8 +77,8 @@ export interface Espacio {
     fotoUrl?: string;
     tipoEspacio: TipoEspacio;
     ubicacion: Ubicacion;
-    fotos?: any[];
-    caracteristicas?: any[];
+    fotos?: FotoEspacio[];
+    caracteristicas?: Caracteristica[];
 }
 
 export interface ServicioAdicional {
@@ -63,12 +92,25 @@ export interface ServicioAdicional {
     advertenciasDevolucion?: string;
 }
 
+export interface ServicioAdicionalReserva {
+    id: number;
+    cantidad: number;
+    subtotal: number;
+    servicioAdicional: {
+        id: number;
+        nombre: string;
+        precioBase: number;
+    };
+}
+
 export interface Reserva {
     id: number;
     codigoReserva: string;
+    fechaReserva?: string;
     fechaInicioReserva: string;
     fechaFinReserva: string;
     montoTotal: number;
+    impuestos?: number;
     descuentoAplicado: number;
     estadoReserva: { id: number; nombreEstado: string };
     observaciones: string;
@@ -76,9 +118,16 @@ export interface Reserva {
     documentoIdentidad: string;
     razonSocial: string;
     direccion: string;
+    estado: boolean;
     usuario: Usuario;
     espacio: Espacio;
-    reservaServicios?: any[];
+    reservaServicios?: ServicioAdicionalReserva[];
+}
+
+export interface FormaPago {
+    id: number;
+    nombreForma: string;
+    estado?: boolean;
 }
 
 export interface Pago {
@@ -87,6 +136,23 @@ export interface Pago {
     fechaPago: string;
     referenciaTransaccion: string;
     reserva: Reserva;
-    formaPago: { id: number; nombreForma: string };
-    estadoPago: { id: number; nombreEstado: string };
+    formaPago: FormaPago;
+    estadoPago: string;
+    estado: boolean;
+}
+
+export interface ApiError {
+    error: string;
+    codigo?: number;
+    timestamp?: string;
+}
+
+export function extractApiError(err: unknown): string {
+    if (err && typeof err === 'object' && 'response' in err) {
+        const resp = (err as { response: { data?: ApiError } }).response;
+        if (resp?.data?.error) return resp.data.error;
+        if (resp?.data && typeof resp.data === 'string') return resp.data;
+    }
+    if (err instanceof Error) return err.message;
+    return 'Ocurrió un error inesperado. Intenta nuevamente.';
 }

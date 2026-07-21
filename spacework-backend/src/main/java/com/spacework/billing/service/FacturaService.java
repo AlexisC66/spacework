@@ -36,52 +36,23 @@ public class FacturaService {
     public Factura generarFacturaDeReserva(Reserva reserva) {
         // Verificar si ya existe factura BASE para evitar duplicados
         if (!facturaRepository.findByReservaIdAndEstadoTrue(reserva.getId()).isEmpty()) {
-            // Ya hay al menos un comprobante. No sobreescribir ni crear base duplicada.
             return facturaRepository.findByReservaIdAndEstadoTrue(reserva.getId()).get(0);
         }
 
-        // Determinar si es Factura o Boleta
-        boolean esFactura = reserva.getUsuario().getEmpresa() != null;
-        String nuevoNumero = generarSiguienteNumero(esFactura);
-
-        // Obtenemos el impuesto (IGV por defecto)
-        Impuesto igv = impuestoRepository.findByNombreAndEstadoTrue("IGV")
-                .orElseThrow(() -> new IllegalStateException("Impuesto IGV no configurado"));
-
-        BigDecimal porcentajeImpuesto = igv.getPorcentaje().divide(new BigDecimal("100"));
-        BigDecimal factorDivision = BigDecimal.ONE.add(porcentajeImpuesto); // 1.18
-
-        BigDecimal totalGeneral = reserva.getMontoTotal();
-        BigDecimal subTotal = totalGeneral.divide(factorDivision, 2, RoundingMode.HALF_UP);
-        BigDecimal totalImpuestos = totalGeneral.subtract(subTotal);
-
-        Factura factura = new Factura();
-        factura.setNumeroFactura(nuevoNumero);
-        factura.setReserva(reserva);
-        factura.setUsuario(reserva.getUsuario());
-        factura.setEmpresa(esFactura ? reserva.getUsuario().getEmpresa() : null);
-        factura.setFechaEmision(LocalDateTime.now());
-        factura.setSubTotal(subTotal);
-        factura.setTotalImpuestos(totalImpuestos);
-        factura.setTotalGeneral(totalGeneral);
-        factura.setEstadoFactura("EMITIDA");
-
-        Factura guardada = facturaRepository.save(factura);
-
-        DetalleFactura detalle = new DetalleFactura();
-        detalle.setFactura(guardada);
-        detalle.setDescripcionItem("Alquiler de Espacio: " + reserva.getEspacio().getNombreEspacio());
-        detalle.setCantidad(1);
-        detalle.setPrecioUnitario(subTotal);
-        detalle.setSubTotalItem(subTotal);
-
-        detalleFacturaRepository.save(detalle);
-
-        return guardada;
+        return crearFactura(reserva, reserva.getMontoTotal(),
+                "Alquiler de Espacio: " + reserva.getEspacio().getNombreEspacio());
     }
 
     @Transactional
     public Factura generarFacturaAdicional(Reserva reserva, BigDecimal monto, String descripcionItem) {
+        return crearFactura(reserva, monto, descripcionItem);
+    }
+
+    /**
+     * Método privado que centraliza la lógica común de creación de facturas.
+     * Evita la duplicación de ~70% del código entre generarFacturaDeReserva y generarFacturaAdicional.
+     */
+    private Factura crearFactura(Reserva reserva, BigDecimal monto, String descripcionItem) {
         Impuesto igv = impuestoRepository.findByNombreAndEstadoTrue("IGV")
                 .orElseThrow(() -> new IllegalStateException("Impuesto IGV no configurado"));
 
@@ -122,11 +93,11 @@ public class FacturaService {
 
     private String generarSiguienteNumero(boolean esFactura) {
         String serie = esFactura ? "F001" : "B001";
-        Factura ultima = facturaRepository.findTopByNumeroFacturaStartingWithOrderByNumeroFacturaDesc(serie + "-");
-        
+        java.util.Optional<Factura> ultima = facturaRepository.findTopByNumeroFacturaStartingWith(serie + "-");
+
         int siguienteCorrelativo = 1;
-        if (ultima != null && ultima.getNumeroFactura() != null) {
-            String[] partes = ultima.getNumeroFactura().split("-");
+        if (ultima.isPresent() && ultima.get().getNumeroFactura() != null) {
+            String[] partes = ultima.get().getNumeroFactura().split("-");
             if (partes.length == 2) {
                 try {
                     siguienteCorrelativo = Integer.parseInt(partes[1]) + 1;
@@ -138,6 +109,7 @@ public class FacturaService {
         return serie + "-" + String.format("%08d", siguienteCorrelativo);
     }
 
+    @Transactional(readOnly = true)
     public List<Factura> obtenerTodasLasFacturas() {
         return facturaRepository.findByEstadoTrue();
     }

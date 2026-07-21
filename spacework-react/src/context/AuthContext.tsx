@@ -5,11 +5,14 @@ interface UserRole {
 }
 
 interface User {
-  idUsuario: number;
+  id: number;
   nombre: string;
+  apellidoPaterno: string;
   correoElectronico: string;
+  telefono?: string;
+  numeroDocumento?: string;
+  estado?: boolean;
   rol: UserRole;
-  [key: string]: any;
 }
 
 interface AuthContextType {

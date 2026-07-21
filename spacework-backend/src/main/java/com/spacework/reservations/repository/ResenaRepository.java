@@ -11,12 +11,22 @@ import java.util.List;
 @Repository
 public interface ResenaRepository extends JpaRepository<Resena, Integer> {
 
-    List<Resena> findByEspacioIdAndEstadoTrueOrderByFechaResenaDesc(Integer espacioId);
+    @Query("SELECT DISTINCT r FROM Resena r " +
+           "LEFT JOIN FETCH r.usuario " +
+           "LEFT JOIN FETCH r.espacio " +
+           "WHERE r.espacio.id = :espacioId AND r.estado = true " +
+           "ORDER BY r.fechaResena DESC")
+    List<Resena> findByEspacioIdAndEstadoTrueOrderByFechaResenaDesc(@Param("espacioId") Integer espacioId);
 
-    List<Resena> findByReservaId(Integer reservaId);
+    @Query("SELECT r FROM Resena r LEFT JOIN FETCH r.reserva WHERE r.reserva.id = :reservaId")
+    List<Resena> findByReservaId(@Param("reservaId") Integer reservaId);
 
     List<Resena> findByUsuarioIdOrderByFechaResenaDesc(Integer usuarioId);
 
+    @Query("SELECT DISTINCT r FROM Resena r " +
+           "LEFT JOIN FETCH r.usuario " +
+           "LEFT JOIN FETCH r.espacio " +
+           "ORDER BY r.fechaResena DESC")
     List<Resena> findAllByOrderByFechaResenaDesc();
 
     @Query("SELECT AVG(r.calificacion) FROM Resena r WHERE r.espacio.id = :espacioId AND r.estado = true")

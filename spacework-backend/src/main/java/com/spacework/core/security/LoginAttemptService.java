@@ -3,21 +3,22 @@ package com.spacework.core.security;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 @Service
-@SuppressWarnings("null")
 public class LoginAttemptService {
 
-    private static final int MAX_ATTEMPTS = 3;
+    private final int maxAttempts;
     private final LoadingCache<String, Integer> attemptsCache;
 
-    public LoginAttemptService() {
-        super();
-        attemptsCache = CacheBuilder.newBuilder()
-                .expireAfterWrite(15, TimeUnit.MINUTES) // bloqueo temporal por 15 minutos
+    public LoginAttemptService(@Value("${login.max-attempts:3}") int maxAttempts,
+                               @Value("${login.block-minutes:15}") int blockMinutes) {
+        this.maxAttempts = maxAttempts;
+        this.attemptsCache = CacheBuilder.newBuilder()
+                .expireAfterWrite(blockMinutes, TimeUnit.MINUTES)
                 .build(new CacheLoader<String, Integer>() {
                     @Override
                     public Integer load(String key) {
@@ -43,7 +44,7 @@ public class LoginAttemptService {
 
     public boolean isBlocked(String key) {
         try {
-            return attemptsCache.get(key) >= MAX_ATTEMPTS;
+            return attemptsCache.get(key) >= maxAttempts;
         } catch (ExecutionException e) {
             return false;
         }

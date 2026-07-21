@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiService } from '../services/api';
+import ErrorAlert from './ErrorAlert';
+import SuccessAlert from './SuccessAlert';
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import { format, parse, startOfWeek, getDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
+import { apiService } from '../services/api';
 
 const locales = {
   'es': es,
@@ -18,8 +20,17 @@ const localizer = dateFnsLocalizer({
   locales,
 });
 
-const CustomEvent = ({ event }: any) => {
-  const parts = event.title.split(' - ');
+interface CalendarEvent {
+  id: string;
+  title: string;
+  start: Date;
+  end: Date;
+  resource: Record<string, unknown>;
+}
+
+const CustomEvent = ({ event }: { event: CalendarEvent }) => {
+  const title = event.title || '';
+  const parts = title.split(' - ');
   const spaceName = parts[0];
   const userName = parts.slice(1).join(' - ');
 
@@ -31,20 +42,40 @@ const CustomEvent = ({ event }: any) => {
   );
 };
 
+interface ReservaData {
+  id: number;
+  codigoReserva: string;
+  fechaInicioReserva: string;
+  fechaFinReserva: string;
+  montoTotal: number;
+  estadoReserva: { id: number; nombreEstado: string };
+  espacio?: { id: number; nombreEspacio: string };
+  usuario?: { id: number; nombre: string; apellidoPaterno: string };
+}
+
+interface EspacioData {
+  id: number;
+  nombreEspacio: string;
+  ubicacion?: { nombreUbicacion: string };
+  precioPorHora?: number;
+  precioPorDia?: number;
+}
+
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [reservas, setReservas] = useState<any[]>([]);
+  const [reservas, setReservas] = useState<ReservaData[]>([]);
   const [cargando, setCargando] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   
   const [viewMode, setViewMode] = useState<'RESUMEN' | 'ANALISIS' | 'CALENDARIO'>('RESUMEN');
-  const [selectedEvent, setSelectedEvent] = useState<any>(null);
-  const [selectedManageSpace, setSelectedManageSpace] = useState<any>(null);
-  const [espacios, setEspacios] = useState<any[]>([]);
-  const [resenas, setResenas] = useState<any[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [selectedManageSpace, setSelectedManageSpace] = useState<EspacioData | null>(null);
+  const [espacios, setEspacios] = useState<EspacioData[]>([]);
+  const [resenas, setResenas] = useState<Record<string, unknown>[]>([]);
 
   // estados para controlar el calendario
-  const [calendarView, setCalendarView] = useState<any>('month');
+  const [calendarView, setCalendarView] = useState<'month' | 'week' | 'day' | 'agenda'>('month');
   const [calendarDate, setCalendarDate] = useState<Date>(new Date());
 
   useEffect(() => {
@@ -72,18 +103,14 @@ const Dashboard: React.FC = () => {
       ]);
       
       let data = resReservas.data;
-      if (Array.isArray(data)) {
-        setReservas(data.sort((a, b) => (b?.id || 0) - (a?.id || 0)));
-      } else {
-        setReservas([]);
-      }
+      const reservasArray = Array.isArray(data) ? data : (data?.content || []);
+      setReservas(reservasArray.sort((a: any, b: any) => (b?.id || 0) - (a?.id || 0)));
       
       setEspacios(Array.isArray(resEspacios.data) ? resEspacios.data : []);
       setResenas(Array.isArray(resResenas.data) ? resResenas.data : []);
     } catch (err) {
       console.error('Error al cargar datos del dashboard:', err);
       setErrorMessage('Error al cargar los datos del dashboard.');
-      setTimeout(() => setErrorMessage(''), 4000);
     } finally {
       setCargando(false);
     }
@@ -143,7 +170,7 @@ const Dashboard: React.FC = () => {
 
   // --- LOGICA DE CALENDARIO ---
   const calendarEvents = useMemo(() => {
-    const events: any[] = [];
+    const events: CalendarEvent[] = [];
     reservas.forEach(r => {
       const start = new Date(r.fechaInicioReserva);
       const end = new Date(r.fechaFinReserva);
@@ -176,7 +203,7 @@ const Dashboard: React.FC = () => {
     return events;
   }, [reservas]);
 
-  const eventStyleGetter = (event: any, _start: Date, _end: Date, _isSelected: boolean) => {
+  const eventStyleGetter = (event: CalendarEvent, _start: Date, _end: Date, _isSelected: boolean) => {
     let backgroundColor = '#3b82f6'; // default blue
     let borderColor = '#2563eb';
     const estado = event.resource?.estadoReserva?.nombreEstado;
@@ -257,11 +284,8 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {errorMessage && (
-        <div className="alert alert-danger bg-danger bg-opacity-25 border-0 text-danger mb-3" role="alert">
-          {errorMessage}
-        </div>
-      )}
+      <SuccessAlert message={successMessage} onClose={() => setSuccessMessage('')} />
+      <ErrorAlert message={errorMessage} onClose={() => setErrorMessage('')} />
 
       {/* Modal para Gestión de Espacio (Feedback y Precio) */}
       {selectedManageSpace && (
@@ -288,7 +312,8 @@ const Dashboard: React.FC = () => {
                       <input type="number" className="form-control bg-light" defaultValue={selectedManageSpace.precioPorDia} />
                     </div>
                     <button className="btn btn-success w-100 fw-semibold" onClick={() => {
-                      alert('Precios actualizados exitosamente en la base de datos.');
+                      setSuccessMessage('Precios actualizados exitosamente.');
+
                       setSelectedManageSpace(null);
                     }}>Guardar Precios</button>
                   </div>
@@ -447,7 +472,7 @@ const Dashboard: React.FC = () => {
                             </div>
                             <div>
                               <strong className="d-block text-dark">{esp.nombreEspacio}</strong>
-                              <span className="small text-muted">{esp.ubicacion?.nombreSede || 'Sede Principal'}</span>
+                              <span className="small text-muted">{esp.ubicacion?.nombreUbicacion || 'Sede Principal'}</span>
                             </div>
                           </div>
                           <div className="text-end">

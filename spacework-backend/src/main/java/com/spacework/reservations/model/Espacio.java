@@ -12,7 +12,12 @@ import lombok.Setter;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "Espacios", schema = "Espacios")
+@Table(name = "Espacios", schema = "Espacios",
+       indexes = {
+           @Index(name = "idx_espacio_tipo", columnList = "TipoEspacioID"),
+           @Index(name = "idx_espacio_ubicacion", columnList = "UbicacionID"),
+           @Index(name = "idx_espacio_estado", columnList = "Estado")
+       })
 @Getter
 @Setter
 @NoArgsConstructor
@@ -29,11 +34,11 @@ public class Espacio {
     @Column(name = "NombreEspacio", length = 100, nullable = false)
     private String nombreEspacio;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "TipoEspacioID", nullable = false)
     private TipoEspacio tipoEspacio;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "UbicacionID", nullable = false)
     private Ubicacion ubicacion;
 
@@ -43,7 +48,8 @@ public class Espacio {
     @Column(name = "CapacidadEquipos")
     private Integer capacidadEquipos;
 
-    @Column(name = "Descripcion", columnDefinition = "TEXT")
+    @Lob
+    @Column(name = "Descripcion", columnDefinition = "NVARCHAR(MAX)")
     private String descripcion;
 
     @Column(name = "EstadoEspacio", length = 20, nullable = false)
@@ -77,7 +83,7 @@ public class Espacio {
     )
     private Set<Caracteristica> caracteristicas = new HashSet<>();
 
-    @OneToMany(mappedBy = "espacio", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "espacio", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonManagedReference
     private List<FotoEspacio> fotos = new ArrayList<>();
 

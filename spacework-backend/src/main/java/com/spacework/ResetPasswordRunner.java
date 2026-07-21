@@ -68,7 +68,7 @@ public class ResetPasswordRunner implements CommandLineRunner {
         Rol rolSuperAdmin = asegurarRol("SUPERADMIN", "Super Administrador");
         Rol rolCliente = asegurarRol("CLIENTE", "Cliente regular");
 
-        TipoDocumento dni = tipoDocumentoRepository.findById(1).orElse(null);
+        TipoDocumento dni = tipoDocumentoRepository.findByAbreviatura("DNI").orElse(null);
 
         asegurarUsuario("admin@spacework.com", "Admin", "Space", "123456", rolAdmin, "12345678", dni);
         asegurarUsuario("superadmin@spacework.com", "Super", "Admin", "123456", rolSuperAdmin, "99999999", dni);

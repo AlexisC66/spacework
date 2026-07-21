@@ -1,9 +1,15 @@
 package com.spacework.core.model;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "Monedas", schema = "dbo")
+@Getter
+@Setter
+@NoArgsConstructor
 public class Moneda {
 
     @Id
@@ -22,21 +28,4 @@ public class Moneda {
 
     @Column(name = "Estado", nullable = false)
     private boolean estado = true;
-
-    public Moneda() {}
-
-    public Integer getId() { return id; }
-    public void setId(Integer id) { this.id = id; }
-
-    public String getCodigo() { return codigo; }
-    public void setCodigo(String codigo) { this.codigo = codigo; }
-
-    public String getNombre() { return nombre; }
-    public void setNombre(String nombre) { this.nombre = nombre; }
-
-    public String getSimbolo() { return simbolo; }
-    public void setSimbolo(String simbolo) { this.simbolo = simbolo; }
-
-    public boolean isEstado() { return estado; }
-    public void setEstado(boolean estado) { this.estado = estado; }
 }

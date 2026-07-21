@@ -25,7 +25,11 @@ public class ReservaRequestDTO {
     private Double descuentoAplicado;
     
     private String observaciones;
-    
+
+    @Min(value = 1, message = "Debe haber al menos 1 asistente")
+    @Max(value = 999, message = "El número de asistentes no puede exceder 999")
+    private Integer asistentes = 1;
+
     @NotBlank(message = "El tipoComprobante es obligatorio")
     @Size(max = 20, message = "El tipoComprobante no debe exceder 20 caracteres")
     private String tipoComprobante;

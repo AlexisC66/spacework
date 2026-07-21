@@ -2,6 +2,7 @@ package com.spacework.crm.controller;
 
 import com.spacework.crm.model.Empresa;
 import com.spacework.crm.service.EmpresaService;
+import com.spacework.auditoria.aop.Auditable;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -27,16 +28,19 @@ public class EmpresaController {
     }
 
     @PostMapping
+    @Auditable(accion = "CREAR_EMPRESA", entidad = "Empresas")
     public ResponseEntity<Empresa> crearEmpresa(@RequestBody Empresa empresa) {
         return ResponseEntity.ok(empresaService.crearEmpresa(empresa));
     }
 
     @PutMapping("/{id}")
+    @Auditable(accion = "ACTUALIZAR_EMPRESA", entidad = "Empresas")
     public ResponseEntity<Empresa> actualizarEmpresa(@PathVariable Integer id, @RequestBody Empresa empresa) {
         return ResponseEntity.ok(empresaService.actualizarEmpresa(id, empresa));
     }
 
     @DeleteMapping("/{id}")
+    @Auditable(accion = "ELIMINAR_EMPRESA", entidad = "Empresas")
     public ResponseEntity<Void> eliminarEmpresa(@PathVariable Integer id) {
         empresaService.eliminarEmpresa(id);
         return ResponseEntity.ok().build();

@@ -1,19 +1,6 @@
-/* ==============================================================================
- * SCRIPT DE INICIALIZACIÓN: ROLES Y USUARIOS BASE
- * ==============================================================================
- * Descripción: Crea los roles y usuarios iniciales (SuperAdmin y Cliente)
- *              necesarios para el arranque y pruebas del sistema SpaceWork.
- * Entorno:     Desarrollo / Testing
- * Proyecto:    SpaceWork - Sistema de Reservas Coworking
- * ============================================================================== */
-
 USE SpaceWork;
 GO
 
-/* ------------------------------------------------------------------------------
- * 1. CONFIGURACIÓN DE ROLES
- * ------------------------------------------------------------------------------ */
--- Asegurar que existe el Rol SUPERADMIN (El rol CLIENTE ya existe por defecto)
 IF NOT EXISTS (SELECT 1 FROM Usuarios.Roles WHERE NombreRol = 'SUPERADMIN')
 BEGIN
     INSERT INTO Usuarios.Roles (NombreRol, Descripcion, Estado) 
@@ -69,10 +56,3 @@ BEGIN
 END
 GO
 
-/* ------------------------------------------------------------------------------
- * RESULTADO
- * ------------------------------------------------------------------------------ */
-PRINT '==============================================================================';
-PRINT '✅ SCRIPT EJECUTADO CON ÉXITO: Usuarios SUPERADMIN y CLIENTE creados o verificados.';
-PRINT '🔑 Credenciales por defecto: Correo del usuario / Contraseña: 123456';
-PRINT '==============================================================================';

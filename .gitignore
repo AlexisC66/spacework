@@ -64,3 +64,8 @@ package-lock.json
 *.bak
 *.mdf
 *.ldf
+$env
+java
+opencode.json
+.opencode/
+backups/

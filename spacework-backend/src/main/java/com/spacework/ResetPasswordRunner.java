@@ -68,7 +68,10 @@ public class ResetPasswordRunner implements CommandLineRunner {
         Rol rolSuperAdmin = asegurarRol("SUPERADMIN", "Super Administrador");
         Rol rolCliente = asegurarRol("CLIENTE", "Cliente regular");
 
-        TipoDocumento dni = tipoDocumentoRepository.findByAbreviatura("DNI").orElse(null);
+        // En una BD nueva la tabla TiposDocumento está vacía: la sembramos aquí
+        TipoDocumento dni = asegurarTipoDocumento("Documento Nacional de Identidad", "DNI");
+        asegurarTipoDocumento("Registro Único de Contribuyentes", "RUC");
+        asegurarTipoDocumento("Carnet de Extranjería", "CE");
 
         asegurarUsuario("admin@spacework.com", "Admin", "Space", "123456", rolAdmin, "12345678", dni);
         asegurarUsuario("superadmin@spacework.com", "Super", "Admin", "123456", rolSuperAdmin, "99999999", dni);
@@ -131,6 +134,16 @@ public class ResetPasswordRunner implements CommandLineRunner {
             fp.setEstado(true);
             formaPagoRepository.save(fp);
         }
+    }
+
+    private TipoDocumento asegurarTipoDocumento(String nombre, String abreviatura) {
+        return tipoDocumentoRepository.findByAbreviatura(abreviatura).orElseGet(() -> {
+            TipoDocumento td = new TipoDocumento();
+            td.setNombreTipo(nombre);
+            td.setAbreviatura(abreviatura);
+            td.setEstado(true);
+            return tipoDocumentoRepository.save(td);
+        });
     }
 
     private Rol asegurarRol(String nombre, String desc) {

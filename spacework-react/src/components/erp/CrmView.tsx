@@ -1,33 +1,16 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../../services/api';
-import ErrorAlert from '../ErrorAlert';
-import SuccessAlert from '../SuccessAlert';
-
-interface EmpresaData {
-  id?: number;
-  documentoFiscal?: string;
-  razonSocial?: string;
-  telefono?: string;
-  direccion?: string;
-  emailContacto?: string;
-  nombreContactoPrincipal?: string;
-  sectorIndustria?: string;
-  porcentajeDescuentoB2B?: number;
-  estado?: boolean;
-}
 
 const CrmView = () => {
-  const [empresas, setEmpresas] = useState<EmpresaData[]>([]);
+  const [empresas, setEmpresas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [selectedEmpresaId, setSelectedEmpresaId] = useState<number | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   
-  const initialEmpresaState: EmpresaData = { documentoFiscal: '', razonSocial: '', telefono: '', direccion: '', emailContacto: '', nombreContactoPrincipal: '', sectorIndustria: '', porcentajeDescuentoB2B: 0 };
-  const [newEmpresa, setNewEmpresa] = useState<EmpresaData>(initialEmpresaState);
+  const initialEmpresaState = { documentoFiscal: '', razonSocial: '', telefono: '', direccion: '', emailContacto: '', nombreContactoPrincipal: '', sectorIndustria: '', porcentajeDescuentoB2B: 0 };
+  const [newEmpresa, setNewEmpresa] = useState(initialEmpresaState);
 
   useEffect(() => {
     fetchEmpresas();
@@ -38,7 +21,7 @@ const CrmView = () => {
       const response = await apiService.getEmpresas();
       setEmpresas(response.data);
     } catch (error) {
-      setErrorMessage('Error al cargar las empresas.');
+      console.error('Error fetching empresas:', error);
     } finally {
       setLoading(false);
     }
@@ -48,10 +31,8 @@ const CrmView = () => {
     try {
       if (isEditing && selectedEmpresaId) {
         await apiService.updateEmpresa(selectedEmpresaId, newEmpresa);
-        setSuccessMessage('Empresa actualizada correctamente.');
       } else {
         await apiService.crearEmpresa(newEmpresa);
-        setSuccessMessage('Empresa creada correctamente.');
       }
       setShowModal(false);
       setNewEmpresa(initialEmpresaState);
@@ -59,11 +40,12 @@ const CrmView = () => {
       setSelectedEmpresaId(null);
       fetchEmpresas();
     } catch (error) {
-      setErrorMessage('Hubo un error al guardar la empresa. Verifique los datos.');
+      console.error('Error saving empresa:', error);
+      alert('Hubo un error al guardar la empresa. Verifique los datos.');
     }
   };
 
-  const handleEdit = (empresa: EmpresaData) => {
+  const handleEdit = (empresa: any) => {
     setNewEmpresa({
       documentoFiscal: empresa.documentoFiscal || '',
       razonSocial: empresa.razonSocial || '',
@@ -74,7 +56,7 @@ const CrmView = () => {
       sectorIndustria: empresa.sectorIndustria || '',
       porcentajeDescuentoB2B: empresa.porcentajeDescuentoB2B || 0
     });
-    setSelectedEmpresaId(empresa.id || null);
+    setSelectedEmpresaId(empresa.id);
     setIsEditing(true);
     setShowModal(true);
   };
@@ -83,10 +65,10 @@ const CrmView = () => {
     if (window.confirm('¿Está seguro de eliminar esta empresa?')) {
       try {
         await apiService.deleteEmpresa(id);
-        setSuccessMessage('Empresa eliminada correctamente.');
         fetchEmpresas();
       } catch (error) {
-        setErrorMessage('No se pudo eliminar la empresa.');
+        console.error('Error deleting empresa:', error);
+        alert('No se pudo eliminar la empresa.');
       }
     }
   };
@@ -124,8 +106,6 @@ const CrmView = () => {
         </div>
       </div>
 
-      <ErrorAlert message={errorMessage} onClose={() => setErrorMessage(null)} />
-      <SuccessAlert message={successMessage} onClose={() => setSuccessMessage(null)} />
       <div className="glass-panel p-0 overflow-hidden border-0 shadow-sm">
         <div className="table-responsive">
           <table className="table table-hover mb-0 align-middle">

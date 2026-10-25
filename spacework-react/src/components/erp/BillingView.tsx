@@ -1,33 +1,14 @@
 import { useState, useEffect } from 'react';
 import { apiService } from '../../services/api';
-import ErrorAlert from '../ErrorAlert';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-interface FacturaData {
-  id: number;
-  numeroFactura?: string;
-  fechaEmision: string;
-  subTotal: number;
-  totalImpuestos: number;
-  totalGeneral: number;
-  estadoFactura: string;
-  empresa?: { razonSocial: string; documentoFiscal: string };
-  usuario?: { nombre: string; apellidoPaterno: string; correoElectronico: string; numeroDocumento: string };
-  reserva?: {
-    codigoReserva: string;
-    fechaInicioReserva: string;
-    espacio: { nombreEspacio: string };
-  };
-}
-
 const BillingView = () => {
-  const [facturas, setFacturas] = useState<FacturaData[]>([]);
+  const [facturas, setFacturas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [selectedFactura, setSelectedFactura] = useState<FacturaData | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedFactura, setSelectedFactura] = useState<any>(null);
 
   useEffect(() => {
     fetchFacturas();
@@ -38,7 +19,7 @@ const BillingView = () => {
       const response = await apiService.getFacturas();
       setFacturas(response.data);
     } catch (error) {
-      setErrorMessage('Error al cargar las facturas.');
+      console.error('Error fetching facturas:', error);
     } finally {
       setLoading(false);
     }
@@ -87,7 +68,7 @@ const BillingView = () => {
     document.body.removeChild(link);
   };
 
-  const handleDownloadPDF = (fac: FacturaData) => {
+  const handleDownloadPDF = (fac: any) => {
     const doc = new jsPDF();
     
     // Configuración de fuentes y colores
@@ -236,7 +217,6 @@ const BillingView = () => {
         </div>
       </div>
 
-      <ErrorAlert message={errorMessage} onClose={() => setErrorMessage(null)} />
       {/* Tabla de Facturas */}
       <div className="glass-panel p-0 overflow-hidden border-0 shadow-sm">
         <div className="p-4 border-bottom bg-white d-flex gap-3">

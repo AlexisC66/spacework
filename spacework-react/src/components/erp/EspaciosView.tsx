@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import Select from 'react-select';
 import { apiService } from '../../services/api';
-import ErrorAlert from '../ErrorAlert';
 
 const EspaciosView = () => {
   const [espacios, setEspacios] = useState<any[]>([]);
@@ -12,7 +11,6 @@ const EspaciosView = () => {
   const [showModal, setShowModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [busqueda, setBusqueda] = useState('');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   const initialForm = {
     id: null,
@@ -52,7 +50,8 @@ const EspaciosView = () => {
       setUbicaciones(resUbi.data || []);
       setCaracteristicas(resCarac.data || []);
     } catch (error) {
-      setErrorMessage('Error al cargar datos.');
+      console.error('Error fetching data:', error);
+    } finally {
       setLoading(false);
     }
   };
@@ -94,13 +93,14 @@ const EspaciosView = () => {
       setShowModal(false);
       fetchData();
     } catch (error: any) {
+      console.error('Error saving espacio:', error);
       const backendError = error.response?.data;
       if (typeof backendError === 'string') {
-          setErrorMessage('Error del servidor: ' + backendError);
+          alert('Error del servidor:\n' + backendError);
       } else if (backendError && backendError.error) {
-          setErrorMessage('Error del servidor: ' + backendError.error);
+          alert('Error del servidor:\n' + backendError.error);
       } else {
-          setErrorMessage('Hubo un error al guardar. Revisa que el código no esté duplicado y todos los campos estén llenos.');
+          alert('Hubo un error al guardar. Revisa que el código no esté duplicado y todos los campos estén llenos.');
       }
     }
   };
@@ -111,7 +111,8 @@ const EspaciosView = () => {
         await apiService.eliminarEspacio(id);
         fetchData();
       } catch (error) {
-        setErrorMessage('Error al eliminar espacio.');
+        console.error('Error deleting espacio:', error);
+        alert('Error al eliminar espacio.');
       }
     }
   };
@@ -166,7 +167,6 @@ const EspaciosView = () => {
 
   return (
     <div className="container-fluid animate__animated animate__fadeIn">
-      <ErrorAlert message={errorMessage} onClose={() => setErrorMessage(null)} />
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
           <h2 className="fw-bold text-dark mb-1">Inventario de Espacios</h2>

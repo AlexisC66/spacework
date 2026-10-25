@@ -33,9 +33,8 @@ const Miembros: React.FC = () => {
       setLoading(true);
       const response = await apiService.getUsuarios();
       const data = response.data;
-      const usuariosArray = Array.isArray(data) ? data : (data?.content || []);
       // mapear los datos del backend al formato esperado por la tabla
-      const mappedData = usuariosArray.map((u: any) => ({
+      const mappedData = data.map((u: any) => ({
         id: u.id,
         nombre: u.nombre,
         apellidoPaterno: u.apellidoPaterno,

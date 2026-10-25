@@ -1,17 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { apiService } from '../services/api';
-import { extractApiError } from '../types';
-import ErrorAlert from './ErrorAlert';
 import EspacioDetalleModal from './EspacioDetalleModal';
-import CalendarioDisponibilidad from './CalendarioDisponibilidad';
-import type { Espacio, Ubicacion } from '../types';
 
 const Catalogo: React.FC = () => {
   const navigate = useNavigate();
 
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [todosLosEspacios, setTodosLosEspacios] = useState<Espacio[]>([]);
+
+  const [todosLosEspacios, setTodosLosEspacios] = useState<any[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
   const [cargando, setCargando] = useState(false);
 
@@ -30,18 +28,18 @@ const Catalogo: React.FC = () => {
   const [tiposSeleccionados, setTiposSeleccionados] = useState<{ [id: number]: boolean }>({});
 
   // catalog data
-  const [tipos, setTipos] = useState<{ id: number; nombreTipo: string }[]>([]);
-  const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>([]);
+  const [tipos, setTipos] = useState<any[]>([]);
+  const [ubicaciones, setUbicaciones] = useState<any[]>([]);
 
   const [todasLasReservas, setTodasLasReservas] = useState<any[]>([]);
   const [todasLasResenas, setTodasLasResenas] = useState<any[]>([]);
 
   // modal detalle
-  const [espacioDetalle, setEspacioDetalle] = useState<Espacio | null>(null);
+  const [espacioDetalle, setEspacioDetalle] = useState<any>(null);
 
   // modal mapa
   const [modalMapaOpen, setModalMapaOpen] = useState(false);
-  const [sedeSeleccionada, setSedeSeleccionada] = useState<Ubicacion | null>(null);
+  const [sedeSeleccionada, setSedeSeleccionada] = useState<any>(null);
 
   const cargarEspacios = useCallback(async () => {
     setCargando(true);
@@ -50,7 +48,7 @@ const Catalogo: React.FC = () => {
       setTodosLosEspacios(Array.isArray(response.data) ? response.data : []);
       setCargando(false);
     } catch (err) {
-      setErrorMessage(extractApiError(err));
+      console.error(err);
       setCargando(false);
     }
   }, []);
@@ -64,17 +62,16 @@ const Catalogo: React.FC = () => {
       setTipos(Array.isArray(resTipos.data) ? resTipos.data : []);
       setUbicaciones(Array.isArray(resUbi.data) ? resUbi.data : []);
     } catch (err) {
-      setErrorMessage(extractApiError(err));
+      console.error(err);
     }
   };
 
   const cargarReservas = async () => {
     try {
       const res = await apiService.getTodasReservas();
-      const data = res.data;
-      setTodasLasReservas(Array.isArray(data) ? data : (data?.content || []));
+      setTodasLasReservas(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      setErrorMessage(extractApiError(err));
+      console.error(err);
     }
   };
 
@@ -83,31 +80,26 @@ const Catalogo: React.FC = () => {
       const res = await apiService.getResenasDashboard();
       setTodasLasResenas(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
-      setErrorMessage(extractApiError(err));
+      console.error(err);
     }
   };
 
   useEffect(() => {
     const userStr = sessionStorage.getItem('user');
-    let admin = false;
     if (userStr) {
       const user = JSON.parse(userStr);
-      admin = ['ADMIN', 'ADMINISTRADOR', 'SUPERADMIN'].includes(user?.rol?.nombreRol);
-      setIsAdmin(admin);
+      setIsAdmin(['ADMIN', 'ADMINISTRADOR', 'SUPERADMIN'].includes(user?.rol?.nombreRol));
     } else {
       setIsAdmin(false);
     }
 
     cargarEspacios();
     cargarCatalogos();
-    // Solo los administradores cargan reservas y reseñas del dashboard
-    if (admin) {
-      cargarReservas();
-      cargarResenas();
-    }
+    cargarReservas();
+    cargarResenas();
   }, [cargarEspacios]);
 
-  const obtenerPrecioMock = (espacio: Espacio): number => {
+  const obtenerPrecioMock = (espacio: any): number => {
     if (espacio.tipoEspacio?.id === 1) return 15.00;
     if (espacio.tipoEspacio?.id === 2) return 35.00;
     return 60.00;
@@ -139,7 +131,7 @@ const Catalogo: React.FC = () => {
       if (r.espacio.id !== espacioId) return false;
       if (r.estadoReserva?.nombreEstado === 'CANCELADA') return false;
       
-      const parseDate = (val: string | number[] | null | undefined): string => {
+      const parseDate = (val: any) => {
         if (!val) return '';
         if (typeof val === 'string') return val.split('T')[0];
         if (Array.isArray(val) && val.length >= 3) {
@@ -184,7 +176,7 @@ const Catalogo: React.FC = () => {
 
         return true;
       });
-    } catch {
+    } catch(e: any) {
       return [{
         id: -1,
         nombreEspacio: "ERROR_EN_FILTRO",
@@ -209,7 +201,7 @@ const Catalogo: React.FC = () => {
     setTiposSeleccionados(prev => ({ ...prev, [id]: checked }));
   };
 
-  const obtenerImagenEspacio = (espacio: Espacio): string => {
+  const obtenerImagenEspacio = (espacio: any): string => {
     if (espacio.fotoUrl) return espacio.fotoUrl;
     const tipoId = espacio.tipoEspacio?.id;
     if (tipoId === 1) return 'https://images.unsplash.com/photo-1527192491265-7e15c55b1ed2?auto=format&fit=crop&q=80&w=400&h=250';
@@ -246,7 +238,7 @@ const Catalogo: React.FC = () => {
     navigate(`/reserva/${espacioId}?fecha=${fechaQuery}`);
   };
 
-  const abrirMapa = (ubicacion: Ubicacion) => {
+  const abrirMapa = (ubicacion: any) => {
     setSedeSeleccionada(ubicacion);
     setModalMapaOpen(true);
   };
@@ -254,7 +246,6 @@ const Catalogo: React.FC = () => {
   try {
   return (
     <div className="container py-3 animate-fade-in">
-      <ErrorAlert message={errorMessage} onClose={() => setErrorMessage(null)} />
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
           <h2 className="text-dark fw-bold mb-0">Explorar Espacios</h2>
@@ -290,7 +281,7 @@ const Catalogo: React.FC = () => {
                       setMostrarSugerencias(true);
                     }}
                     onFocus={() => setMostrarSugerencias(true)}
-                    onBlur={() => setMostrarSugerencias(false)}
+                    onBlur={() => setTimeout(() => setMostrarSugerencias(false), 200)}
                   />
                 </div>
                 
@@ -344,10 +335,13 @@ const Catalogo: React.FC = () => {
 
             <div className="mb-4">
               <h6 className="text-dark fw-bold mb-3">Fecha de Reserva</h6>
-              <CalendarioDisponibilidad
-                fechaSeleccionada={filtroFecha}
-                onFechaSeleccionada={(date) => setFiltroFecha(date)}
-                modo="catalogo"
+              <DatePicker
+                selected={filtroFecha}
+                onChange={(date: Date | null) => setFiltroFecha(date)}
+                dateFormat="dd/MM/yyyy"
+                className="form-control bg-light border-0 text-dark py-2 shadow-sm"
+                placeholderText="Seleccione fecha"
+                wrapperClassName="w-100"
               />
             </div>
 
@@ -481,7 +475,7 @@ const Catalogo: React.FC = () => {
                       </div>
 
                       <div className="d-flex flex-wrap gap-2 mb-4">
-                        {Array.isArray(espacio.caracteristicas) && espacio.caracteristicas.map((c) => c ? (
+                        {Array.isArray(espacio.caracteristicas) && espacio.caracteristicas.map((c: any) => c ? (
                           <span key={c.id || Math.random()} className="badge bg-light text-dark border d-flex align-items-center gap-1 py-1 px-2" style={{ fontSize: '11px', fontWeight: 'normal' }}>
                             <i className={`bi ${obtenerIconoCaracteristica(c.nombreCaracteristica)}`}></i> {c.nombreCaracteristica || ''}
                           </span>
@@ -650,7 +644,7 @@ const Catalogo: React.FC = () => {
       `}</style>
     </div>
   );
-  } catch {
+  } catch (error: any) {
     return (
       <div className="container py-5 text-center mt-5">
         <h2 className="text-danger">Error Inesperado en Catálogo</h2>

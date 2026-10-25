@@ -1,11 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
-import ReviewModal from './ReviewModal';
-import PaymentModal from './PaymentModal';
-import ExtraServiceModal from './ExtraServiceModal';
-import ReservationDetailModal from './ReservationDetailModal';
-import InvoiceModal from './InvoiceModal';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -99,8 +94,11 @@ const MisReservas: React.FC = () => {
     try {
       const response = await apiService.getReservasPorUsuario(usuarioId);
       const data = response.data;
-      const reservasArray = Array.isArray(data) ? data : (data?.content || []);
-      setReservas([...reservasArray].sort((a: any, b: any) => (b?.id || 0) - (a?.id || 0)));
+      if (Array.isArray(data)) {
+        setReservas([...data].sort((a, b) => (b?.id || 0) - (a?.id || 0)));
+      } else {
+        setReservas([]);
+      }
     } catch (err) {
       console.error('Error al cargar reservas:', err);
       setErrorMessage('Error al cargar las reservas. Intente nuevamente.');
@@ -776,80 +774,441 @@ const MisReservas: React.FC = () => {
 
       </div>
 
-      {mostrarModalPago && reservaSeleccionada && (
-        <PaymentModal
-          reservaId={reservaSeleccionada.id}
-          montoTotal={Number(reservaSeleccionada.montoTotal)}
-          onClose={cerrarModalPago}
-          onSuccess={() => {
-            setSuccessMessage('Pago procesado exitosamente.');
-            setTimeout(() => setSuccessMessage(''), 4000);
-            cargarReservas();
-          }}
-        />
+      {mostrarModalPago && (
+        <div className="d-flex justify-content-center align-items-center animate-fade-in" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.4)', zIndex: 2000, backdropFilter: 'blur(4px)' }}>
+          <div className="glass-panel p-5 col-md-8 col-lg-5 overflow-auto border-0 position-relative" style={{ maxHeight: '90vh' }}>
+            <button className="btn-close-custom" onClick={cerrarModalPago} style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: '#64748b', fontSize: '20px', cursor: 'pointer' }}><i className="bi bi-x-lg"></i></button>
+            
+            <h3 className="text-gradient fw-bold mb-3">Realizar Pago</h3>
+            <p className="text-muted small mb-4">Completa el pago para confirmar tu reserva del espacio: <strong>{reservaSeleccionada?.espacio?.nombreEspacio}</strong></p>
+            
+            <div className="alert alert-dark bg-dark bg-opacity-75 border-secondary border-opacity-25 text-white mb-4 d-flex justify-content-between align-items-center">
+              <div>
+                <span className="small text-muted d-block">Monto a pagar</span>
+                <strong className="fs-4 text-gradient">S/. {Number(reservaSeleccionada?.montoTotal).toFixed(2)}</strong>
+              </div>
+              <div className="text-end small text-muted">
+                <span>Código: {reservaSeleccionada?.codigoReserva}</span>
+              </div>
+            </div>
+
+            <form onSubmit={procesarPago}>
+              <div className="mb-4">
+                <label className="form-label text-muted small">Método de Pago</label>
+                <div className="d-flex gap-3">
+                  <div className="flex-grow-1">
+                    <input type="radio" className="btn-check" name="metodoPago" id="card" value="card" checked={metodoPago === 'card'} onChange={() => setMetodoPago('card')} />
+                    <label className="btn btn-outline-primary w-100 py-3 d-flex flex-column align-items-center gap-1" htmlFor="card">
+                      <i className="bi bi-credit-card fs-4"></i>
+                      <span className="small fw-semibold">Tarjeta Crédito/Débito</span>
+                    </label>
+                  </div>
+                  <div className="flex-grow-1">
+                    <input type="radio" className="btn-check" name="metodoPago" id="transfer" value="transfer" checked={metodoPago === 'transfer'} onChange={() => setMetodoPago('transfer')} />
+                    <label className="btn btn-outline-primary w-100 py-3 d-flex flex-column align-items-center gap-1" htmlFor="transfer">
+                      <i className="bi bi-bank fs-4"></i>
+                      <span className="small fw-semibold">Transferencia</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {metodoPago === 'card' && (
+                <div className="animate-fade-in">
+                  <div className="mb-3">
+                    <label className="form-label text-muted small">Nombre del Tarjetahabiente</label>
+                    <input type="text" className="form-control bg-light border-0 text-dark py-2" value={pagoForm.nombreTarjeta} onChange={(e) => setPagoForm({...pagoForm, nombreTarjeta: e.target.value})} required placeholder="Ej. Juan Pérez" />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label text-muted small">Número de Tarjeta</label>
+                    <div className="input-group">
+                      <span className="input-group-text bg-light border-0 text-muted"><i className="bi bi-credit-card-fill"></i></span>
+                      <input type="text" className="form-control bg-light border-0 text-dark py-2" value={pagoForm.nroTarjeta} onChange={formatCardNumber} required placeholder="4000 1234 5678 9010" maxLength={19} />
+                    </div>
+                  </div>
+                  <div className="row">
+                    <div className="col-6 mb-4">
+                      <label className="form-label text-muted small">Vencimiento</label>
+                      <input type="text" className="form-control bg-light border-0 text-dark py-2" value={pagoForm.exp} onChange={formatExpiry} required placeholder="MM/AA" maxLength={5} />
+                    </div>
+                    <div className="col-6 mb-4">
+                      <label className="form-label text-muted small">CVV</label>
+                      <input type="password" className="form-control bg-light border-0 text-dark py-2" value={pagoForm.cvv} onChange={(e) => setPagoForm({...pagoForm, cvv: e.target.value})} required placeholder="•••" maxLength={4} />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {metodoPago === 'transfer' && (
+                <div className="animate-fade-in mb-4">
+                  <div className="p-3 bg-light rounded-3 mb-3 border">
+                    <span className="small text-muted d-block">Cuenta de Ahorros BCP (Soles)</span>
+                    <strong className="text-dark">193-98765432-0-12</strong>
+                    <span className="small text-muted d-block mt-2">CCI (Transferencia interbancaria)</span>
+                    <strong className="text-dark">002-19309876543201214</strong>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label text-muted small">Número de Operación / Referencia</label>
+                    <input type="text" className="form-control bg-light border-0 text-dark py-2" value={pagoForm.referencia} onChange={(e) => setPagoForm({...pagoForm, referencia: e.target.value})} required placeholder="Ej. N° Operación de 6 u 8 dígitos" />
+                  </div>
+                </div>
+              )}
+
+              <div className="d-flex gap-3 mt-4">
+                <button type="button" className="btn btn-outline-secondary w-50" onClick={cerrarModalPago}>Cancelar</button>
+                <button type="submit" className="btn btn-primary-custom w-50 py-2 fw-semibold">Procesar Pago</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
-      {mostrarModalResena && reservaParaResena && (
-        <ReviewModal
-          reservaId={reservaParaResena.id}
-          onClose={cerrarModalResena}
-          onSuccess={() => {
-            setSuccessMessage('Reseña guardada exitosamente.');
-            setTimeout(() => setSuccessMessage(''), 4000);
-          }}
-        />
+      {mostrarModalResena && (
+        <div className="d-flex justify-content-center align-items-center animate-fade-in" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.4)', zIndex: 2000, backdropFilter: 'blur(4px)' }}>
+          <div className="glass-panel p-5 col-md-8 col-lg-5 overflow-auto border-0 position-relative" style={{ maxHeight: '90vh' }}>
+            <button className="btn-close-custom" onClick={cerrarModalResena} style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: '#64748b', fontSize: '20px', cursor: 'pointer' }}><i className="bi bi-x-lg"></i></button>
+            
+            <h3 className="text-gradient fw-bold mb-3">Deja tu Reseña</h3>
+            <p className="text-muted small mb-4">¿Cómo fue tu experiencia en <strong>{reservaParaResena?.espacio?.nombreEspacio}</strong>?</p>
+            
+            <form onSubmit={enviarResena}>
+              <div className="mb-4 text-center">
+                <label className="form-label text-muted small d-block">Calificación General</label>
+                <div className="d-flex justify-content-center gap-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <i 
+                      key={star} 
+                      className={`bi ${star <= resenaForm.calificacion ? 'bi-star-fill text-warning' : 'bi-star text-muted'} fs-2`}
+                      style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+                      onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                      onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                      onClick={() => setResenaForm({ ...resenaForm, calificacion: star })}
+                    ></i>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <label className="form-label text-muted small">Cuéntanos más (Opcional)</label>
+                <textarea 
+                  className="form-control bg-light border-0 text-dark p-3" 
+                  rows={4} 
+                  placeholder="¿Qué te gustó más del espacio? ¿Algo podría mejorar?"
+                  value={resenaForm.comentario} 
+                  onChange={(e) => setResenaForm({ ...resenaForm, comentario: e.target.value })}
+                ></textarea>
+              </div>
+
+              <div className="d-flex gap-3 mt-4">
+                <button type="button" className="btn btn-outline-secondary w-50" onClick={cerrarModalResena}>Cancelar</button>
+                <button type="submit" className="btn btn-primary-custom w-50 py-2 fw-semibold">Enviar Reseña</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {mostrarModalDetalle && detalleReserva && (
-        <ReservationDetailModal reserva={detalleReserva} onClose={cerrarModalDetalle} />
+        <div className="d-flex justify-content-center align-items-center animate-fade-in" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.4)', zIndex: 2000, backdropFilter: 'blur(4px)' }}>
+          <div className="glass-panel p-4 col-11 col-md-8 col-lg-4 overflow-auto border-0 position-relative shadow-lg" style={{ maxHeight: '90vh', borderRadius: '16px' }}>
+            <button className="btn-close-custom" onClick={cerrarModalDetalle} style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: '#64748b', fontSize: '20px', cursor: 'pointer' }}><i className="bi bi-x-lg"></i></button>
+            
+            <div className="text-center mb-4 mt-2">
+              <div className="d-inline-flex justify-content-center align-items-center rounded-circle mb-3 shadow-sm" style={{ width: '56px', height: '56px', background: 'linear-gradient(135deg, #e0e7ff 0%, #ede9fe 100%)' }}>
+                <i className="bi bi-info-circle fs-3 text-primary-custom"></i>
+              </div>
+              <h4 className="fw-bold text-dark mb-1">Detalles de Reserva</h4>
+              <p className="text-muted small mb-0">Código: <span className="text-primary-custom fw-semibold">{detalleReserva.codigoReserva || detalleReserva.id}</span></p>
+            </div>
+            
+            <div className="p-3 bg-light rounded-4 mb-4 border">
+              <div className="d-flex align-items-center mb-3 pb-3 border-bottom">
+                <div className="flex-shrink-0">
+                  <img src={obtenerImagenEspacio(detalleReserva.espacio)} alt="Espacio" style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '8px' }} />
+                </div>
+                <div className="ms-3 flex-grow-1">
+                  <h6 className="fw-bold text-dark mb-1">{detalleReserva.espacio?.nombreEspacio}</h6>
+                  <p className="text-muted small mb-0"><i className="bi bi-geo-alt-fill me-1 text-primary-custom"></i>{detalleReserva.espacio?.ubicacion?.nombreUbicacion}</p>
+                </div>
+              </div>
+
+              <div className="row g-2 mb-3">
+                <div className="col-6">
+                  <span className="text-muted d-block mb-1" style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Check-in</span>
+                  <div className="d-flex align-items-center">
+                    <i className="bi bi-calendar-check text-success me-2"></i>
+                    <strong className="text-dark small" style={{ fontSize: '13px' }}>{formatearFechaHora(detalleReserva.fechaInicioReserva)}</strong>
+                  </div>
+                </div>
+                <div className="col-6">
+                  <span className="text-muted d-block mb-1" style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Check-out</span>
+                  <div className="d-flex align-items-center">
+                    <i className="bi bi-calendar-x text-danger me-2"></i>
+                    <strong className="text-dark small" style={{ fontSize: '13px' }}>{formatearFechaHora(detalleReserva.fechaFinReserva)}</strong>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="border-top pt-3 mt-2">
+                <div className="d-flex justify-content-between align-items-center mb-2">
+                  <span className="text-muted small">Estado:</span>
+                  <span className={`badge rounded-pill px-3 py-1 fw-medium
+                        ${detalleReserva.estadoReserva?.nombreEstado === 'CONFIRMADA' ? 'bg-success bg-opacity-10 text-success border border-success border-opacity-25' : ''}
+                        ${detalleReserva.estadoReserva?.nombreEstado === 'PENDIENTE' ? 'bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25' : ''}
+                        ${detalleReserva.estadoReserva?.nombreEstado?.startsWith('CANCELADA') ? 'bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25' : ''}
+                        ${detalleReserva.estadoReserva?.nombreEstado === 'FINALIZADA' ? 'bg-info bg-opacity-10 text-info border border-info border-opacity-25' : ''}
+                  `}>
+                    {detalleReserva.estadoReserva?.nombreEstado}
+                  </span>
+                </div>
+                <div className="d-flex justify-content-between align-items-center">
+                  <span className="text-muted small">Total a pagar:</span>
+                  <strong className="fs-5 text-dark fw-bold">S/. {Number(detalleReserva.montoTotal).toFixed(2)}</strong>
+                </div>
+              </div>
+
+              {detalleReserva.reservaServicios && detalleReserva.reservaServicios.length > 0 && (
+                <div className="border-top pt-3 mt-3">
+                  <h6 className="fw-bold text-dark mb-2"><i className="bi bi-box-seam me-2 text-primary"></i>Servicios Adicionales</h6>
+                  <ul className="list-group list-group-flush border rounded overflow-hidden shadow-sm">
+                    {detalleReserva.reservaServicios.map((rs: any, idx: number) => (
+                      <li key={idx} className="list-group-item d-flex justify-content-between align-items-center bg-white p-3">
+                        <div>
+                          <span className="fw-semibold text-dark d-block mb-1">{rs.servicioAdicional?.nombre} (x{rs.cantidad})</span>
+                          {rs.fechaUso && (
+                            <span className="badge bg-primary bg-opacity-10 text-primary border border-primary border-opacity-25 rounded-pill fw-medium px-2 py-1">
+                              <i className="bi bi-calendar-event me-1"></i>
+                              {new Date(rs.fechaUso + 'T00:00:00').toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-dark fw-bold font-monospace">S/. {Number(rs.subtotal).toFixed(2)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {detalleReserva.observaciones && (
+              <div className="mb-4">
+                <h6 className="fw-semibold text-dark small mb-2"><i className="bi bi-card-text me-2 text-muted"></i>Observaciones:</h6>
+                <div className="p-3 bg-white rounded-3 border shadow-sm small text-muted fst-italic">
+                  "{detalleReserva.observaciones}"
+                </div>
+              </div>
+            )}
+            
+              <div className="text-center mt-2">
+              <button className="btn btn-primary-custom w-100 py-2 fw-semibold rounded-pill shadow-sm" onClick={cerrarModalDetalle}>Cerrar Detalles</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {mostrarModalExtra && reservaParaExtra && (
-        <ExtraServiceModal
-          reserva={reservaParaExtra}
-          onClose={cerrarModalExtra}
-          onSuccess={() => {
-            setSuccessMessage('Servicios adicionales agregados.');
-            setTimeout(() => setSuccessMessage(''), 4000);
-            cargarReservas();
-          }}
-        />
+        <div className="d-flex justify-content-center align-items-center animate-fade-in" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.5)', zIndex: 2000, backdropFilter: 'blur(4px)' }}>
+          <div className="glass-panel p-4 col-11 col-md-8 col-lg-5 overflow-auto border-0 position-relative shadow-lg" style={{ maxHeight: '90vh', borderRadius: '16px' }}>
+            <button className="btn-close-custom" onClick={cerrarModalExtra} style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: '#64748b', fontSize: '20px', cursor: 'pointer' }}><i className="bi bi-x-lg"></i></button>
+            
+            <h3 className="text-gradient fw-bold mb-3">Añadir Servicio Extra</h3>
+            <p className="text-muted small mb-4">Añade equipos adicionales para un día específico de tu reserva en <strong>{reservaParaExtra.espacio?.nombreEspacio}</strong>.</p>
+            
+            <form onSubmit={procesarAgregarExtra}>
+              <div className="mb-4">
+                <label className="form-label text-muted small fw-semibold mb-2">Duración del Servicio Extra</label>
+                <div className="d-flex gap-3 mb-3">
+                  <div className="form-check">
+                    <input className="form-check-input" type="radio" name="duracionExtra" id="duracionDia" checked={tipoDuracionExtra === 'dia'} onChange={() => setTipoDuracionExtra('dia')} />
+                    <label className="form-check-label small" htmlFor="duracionDia">
+                      Solo un día específico
+                    </label>
+                  </div>
+                  <div className="form-check">
+                    <input className="form-check-input" type="radio" name="duracionExtra" id="duracionReserva" checked={tipoDuracionExtra === 'reserva'} onChange={() => setTipoDuracionExtra('reserva')} />
+                    <label className="form-check-label small" htmlFor="duracionReserva">
+                      Toda la reserva restante
+                    </label>
+                  </div>
+                </div>
+
+                {tipoDuracionExtra === 'dia' ? (
+                  <div className="animate-fade-in">
+                    <label className="form-label text-muted small fw-semibold">Seleccionar Fecha</label>
+                    <input 
+                      type="date" 
+                      className="form-control border py-2" 
+                      value={fechaGlobal} 
+                      onChange={(e) => setFechaGlobal(e.target.value)}
+                      min={new Date(Math.max(new Date(reservaParaExtra.fechaInicioReserva).getTime(), new Date().getTime())).toISOString().split('T')[0]}
+                      max={reservaParaExtra.fechaFinReserva?.split('T')[0]}
+                      required 
+                    />
+                    <div className="form-text" style={{fontSize: '10px'}}>Debe estar dentro de los días de tu reserva.</div>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-light border rounded small text-muted animate-fade-in">
+                    <i className="bi bi-info-circle me-2"></i>
+                    Se añadirán los servicios seleccionados para todos los días restantes de la reserva (<strong>{getFechasParaExtras().length} días</strong> en total). El costo se multiplicará por esta cantidad de días.
+                  </div>
+                )}
+              </div>
+
+              <div className="mb-4">
+                <label className="form-label text-muted small fw-semibold mb-3">Servicios Disponibles</label>
+                <div className="d-flex flex-column gap-2">
+                  {serviciosAdicionales.map(srv => {
+                    const q = cantidadesExtras[srv.id] || 0;
+                    return (
+                      <div key={srv.id} className={`d-flex justify-content-between align-items-center p-3 border rounded-3 transition-all ${q > 0 ? 'border-primary bg-primary bg-opacity-10' : 'bg-white'}`}>
+                        <div>
+                          <div className="fw-semibold text-dark">{srv.nombre}</div>
+                          <div className="text-muted small">S/. {srv.precioBase.toFixed(2)} / día</div>
+                        </div>
+                        <div className="d-flex align-items-center gap-3">
+                          <button type="button" className="btn btn-sm btn-outline-secondary rounded-circle" style={{width: '32px', height: '32px'}} onClick={() => handleDecrement(srv.id)}>
+                            <i className="bi bi-dash"></i>
+                          </button>
+                          <span className="fw-bold" style={{minWidth: '20px', textAlign: 'center'}}>{q}</span>
+                          <button type="button" className="btn btn-sm btn-outline-primary rounded-circle" style={{width: '32px', height: '32px'}} onClick={() => handleIncrement(srv.id)}>
+                            <i className="bi bi-plus"></i>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="p-3 bg-primary bg-opacity-10 rounded-3 mb-4 border border-primary border-opacity-25 d-flex justify-content-between align-items-center">
+                <span className="text-primary fw-semibold small">Gran Total Extras:</span>
+                <strong className="text-primary fs-5">S/. {calcularTotalExtras().toFixed(2)}</strong>
+              </div>
+
+              {reservaParaExtra.estadoReserva?.nombreEstado === 'CONFIRMADA' && (
+                <div className="border-top pt-4 mb-2 animate-fade-in">
+                  <h6 className="fw-bold text-dark mb-3"><i className="bi bi-credit-card-2-front-fill me-2 text-primary"></i>Datos de Pago</h6>
+                  <p className="small text-muted mb-3">Tu reserva ya está pagada. Para añadir este servicio, por favor ingresa los datos de tu tarjeta para cobrar el subtotal.</p>
+                  
+                  <div className="mb-3">
+                    <input type="text" className="form-control bg-light border-0 py-2 text-dark" placeholder="Nombre en la Tarjeta" value={extraForm.nombreTarjeta} onChange={(e) => setExtraForm({...extraForm, nombreTarjeta: e.target.value})} required />
+                  </div>
+                  <div className="mb-3">
+                    <input type="text" className="form-control bg-light border-0 py-2 text-dark" placeholder="Número de Tarjeta (16 dígitos)" maxLength={19} value={extraForm.nroTarjeta} onChange={formatExtraCardNumber} required />
+                  </div>
+                  <div className="row g-2 mb-2">
+                    <div className="col-6">
+                      <input type="text" className="form-control bg-light border-0 py-2 text-dark" placeholder="MM/AA" maxLength={5} value={extraForm.exp} onChange={formatExtraExpiry} required />
+                    </div>
+                    <div className="col-6">
+                      <input type="password" className="form-control bg-light border-0 py-2 text-dark" placeholder="CVV" maxLength={4} value={extraForm.cvv} onChange={(e) => setExtraForm({...extraForm, cvv: e.target.value})} required />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="d-flex gap-3 mt-4">
+                <button type="button" className="btn btn-outline-secondary w-50 py-2 fw-semibold" onClick={cerrarModalExtra}>Cancelar</button>
+                <button type="submit" className="btn btn-primary-custom w-50 py-2 fw-semibold">
+                  {reservaParaExtra.estadoReserva?.nombreEstado === 'CONFIRMADA' ? 'Pagar y Añadir Todos' : 'Añadir Todos'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {mostrarModalFacturas && reservaParaFacturas && (
-        <InvoiceModal
-          reserva={reservaParaFacturas}
-          onClose={cerrarModalFacturas}
-          descargarBoletaBase={descargarBoletaBase}
-          descargarBoletaExtra={descargarBoletaExtra}
-        />
+        <div className="d-flex justify-content-center align-items-center animate-fade-in" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.5)', zIndex: 2000, backdropFilter: 'blur(4px)' }}>
+          <div className="glass-panel p-4 col-11 col-md-6 col-lg-4 overflow-auto border-0 position-relative shadow-lg" style={{ maxHeight: '90vh', borderRadius: '16px' }}>
+            <button className="btn-close-custom" onClick={cerrarModalFacturas} style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: '#64748b', fontSize: '20px', cursor: 'pointer' }}><i className="bi bi-x-lg"></i></button>
+            
+            <h4 className="text-gradient fw-bold mb-3"><i className="bi bi-receipt me-2"></i>Tus Comprobantes</h4>
+            <p className="text-muted small mb-4">Descarga el comprobante principal de tu alquiler o los recibos de los servicios adicionales solicitados.</p>
+            
+            <div className="d-flex flex-column gap-3 mb-4">
+              {/* Factura Base */}
+              <div className="d-flex justify-content-between align-items-center p-3 border rounded bg-white shadow-sm hover-shadow transition">
+                <div>
+                  <strong className="d-block text-dark mb-1">Comprobante de Alquiler</strong>
+                  <span className="text-muted small">Alquiler de {reservaParaFacturas.espacio?.nombreEspacio}</span>
+                </div>
+                <button className="btn btn-primary-custom btn-sm px-3" onClick={descargarBoletaBase}>
+                  <i className="bi bi-download"></i>
+                </button>
+              </div>
+
+              {/* Facturas de Extras */}
+              {reservaParaFacturas.reservaServicios && reservaParaFacturas.reservaServicios.map((rs: any, idx: number) => (
+                <div key={idx} className="d-flex justify-content-between align-items-center p-3 border rounded bg-white shadow-sm hover-shadow transition">
+                  <div>
+                    <strong className="d-block text-dark mb-1">Comprobante de Servicio Extra</strong>
+                    <span className="text-muted small">{rs.servicioAdicional?.nombre} (x{rs.cantidad})</span>
+                  </div>
+                  <button className="btn btn-outline-primary btn-sm px-3" onClick={() => descargarBoletaExtra(rs, idx)}>
+                    <i className="bi bi-download"></i>
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="text-center mt-2">
+              <button className="btn btn-light w-100 py-2 fw-semibold border" onClick={cerrarModalFacturas}>Cerrar</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {modalMapaOpen && sedeSeleccionada && (
-        <div className="modal-overlay d-flex align-items-center justify-content-center" style={{ position: 'fixed', inset: 0, zIndex: 1050, backgroundColor: 'rgba(0,0,0,0.6)' }}>
-          <div className="bg-white rounded-4 shadow-lg overflow-hidden" style={{ maxWidth: '600px', width: '90%' }}>
-            <div className="p-3 d-flex justify-content-between align-items-center border-bottom">
-              <h6 className="fw-bold mb-0"><i className="bi bi-geo-alt text-danger me-2"></i>{sedeSeleccionada.nombreUbicacion}</h6>
-              <button className="btn-close" onClick={() => setModalMapaOpen(false)}></button>
-            </div>
-            <div style={{ height: '350px' }}>
-              {sedeSeleccionada.urlGoogleMaps?.includes('<iframe') ? (
-                <div dangerouslySetInnerHTML={{ __html: sedeSeleccionada.urlGoogleMaps }} style={{ height: '100%' }} />
-              ) : (
-                <iframe
-                  width="100%" height="100%" frameBorder="0"
-                  src={`https://maps.google.com/maps?q=${encodeURIComponent(
-                    (sedeSeleccionada.latitud && sedeSeleccionada.longitud)
-                      ? `${sedeSeleccionada.latitud},${sedeSeleccionada.longitud}`
-                      : [sedeSeleccionada.direccion, sedeSeleccionada.ciudad, sedeSeleccionada.pais].filter(Boolean).join(', ')
-                  )}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
-                  allowFullScreen
-                ></iframe>
-              )}
-            </div>
-            <div className="p-3 border-top">
-              <p className="mb-0 fw-bold small">{sedeSeleccionada.direccion || 'Dirección no especificada'}</p>
-              <small className="text-muted">{sedeSeleccionada.ciudad}, {sedeSeleccionada.pais || 'Perú'}</small>
+        <div className="d-flex justify-content-center align-items-center animate-fade-in" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.6)', zIndex: 2000, backdropFilter: 'blur(4px)' }}>
+          <div className="w-100" style={{ maxWidth: '600px' }}>
+            <div className="card border-0 rounded-4 shadow-lg overflow-hidden glass-panel m-3">
+              <div className="card-header bg-white border-bottom-0 py-3 px-4 d-flex justify-content-between align-items-center">
+                <h5 className="mb-0 fw-bold d-flex align-items-center">
+                  <i className="bi bi-geo-alt-fill text-danger me-2"></i>
+                  Ubicación: {sedeSeleccionada.nombreUbicacion}
+                </h5>
+                <button type="button" className="btn-close" onClick={() => setModalMapaOpen(false)}></button>
+              </div>
+              <div className="card-body p-0">
+                {sedeSeleccionada.urlGoogleMaps && sedeSeleccionada.urlGoogleMaps.includes('<iframe') ? (
+                  <div 
+                    className="w-100" 
+                    style={{ height: '350px' }}
+                    dangerouslySetInnerHTML={{ __html: sedeSeleccionada.urlGoogleMaps }}
+                  />
+                ) : (
+                  <div className="w-100 position-relative" style={{ height: '350px' }}>
+                    <iframe 
+                      width="100%" 
+                      height="100%" 
+                      frameBorder="0" 
+                      style={{ border: 0 }}
+                      referrerPolicy="no-referrer-when-downgrade"
+                      src={`https://maps.google.com/maps?q=${encodeURIComponent((sedeSeleccionada.latitud && sedeSeleccionada.longitud) ? `${sedeSeleccionada.latitud},${sedeSeleccionada.longitud}` : [sedeSeleccionada.direccion, sedeSeleccionada.ciudad, sedeSeleccionada.pais].filter(Boolean).join(', '))}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+                      allowFullScreen
+                    ></iframe>
+                    
+                    {sedeSeleccionada.urlGoogleMaps && (
+                      <div className="position-absolute top-0 start-0 m-3">
+                        <a href={sedeSeleccionada.urlGoogleMaps} target="_blank" rel="noopener noreferrer" className="btn btn-light btn-sm shadow text-primary fw-semibold d-flex align-items-center gap-1">
+                          Abrir en Maps <i className="bi bi-box-arrow-up-right"></i>
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                <div className="p-4 bg-white border-top">
+                  <div className="d-flex align-items-start gap-3">
+                    <i className="bi bi-building fs-4 text-muted"></i>
+                    <div>
+                      <p className="mb-1 fw-bold text-dark">{sedeSeleccionada.direccion || 'Dirección no especificada'}</p>
+                      <p className="mb-0 text-muted small">{sedeSeleccionada.ciudad}, {sedeSeleccionada.pais || 'Peru'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

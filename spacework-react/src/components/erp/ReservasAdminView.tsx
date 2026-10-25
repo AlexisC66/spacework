@@ -16,9 +16,11 @@ const ReservasAdminView = () => {
     try {
       const response = await apiService.getTodasReservas();
       let data = response.data;
-      // Soporta tanto Page (objeto con .content) como array legacy
-      const reservasArray = Array.isArray(data) ? data : (data?.content || []);
-      setReservas(reservasArray.sort((a: any, b: any) => (b?.id || 0) - (a?.id || 0)));
+      if (Array.isArray(data)) {
+        setReservas(data.sort((a, b) => (b?.id || 0) - (a?.id || 0)));
+      } else {
+        setReservas([]);
+      }
     } catch (error) {
       console.error('Error fetching reservas:', error);
     } finally {

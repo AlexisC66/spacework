@@ -2,14 +2,24 @@ package com.spacework.reservations.repository;
 
 import com.spacework.reservations.model.Espacio;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface EspacioRepository extends JpaRepository<Espacio, Integer> {
+
+    // Bloquea la fila del espacio hasta que termine la transacción actual.
+    // Se usa al crear una reserva para que dos solicitudes concurrentes sobre
+    // el mismo espacio no puedan pasar ambas la validación de traslape antes
+    // de que la primera termine de guardar (evita el doble-booking).
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT e FROM Espacio e WHERE e.id = :id")
+    Optional<Espacio> findByIdForUpdate(@Param("id") Integer id);
 
     @Query("SELECT DISTINCT e FROM Espacio e " +
            "LEFT JOIN FETCH e.tipoEspacio " +

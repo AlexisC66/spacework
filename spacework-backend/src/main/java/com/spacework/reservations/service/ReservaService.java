@@ -4,6 +4,7 @@ import com.spacework.reservations.model.Espacio;
 import com.spacework.reservations.model.EstadoReserva;
 import com.spacework.reservations.model.Reserva;
 import com.spacework.crm.model.Usuario;
+import com.spacework.reservations.repository.EspacioRepository;
 import com.spacework.reservations.repository.EstadoReservaRepository;
 import com.spacework.reservations.repository.ReservaRepository;
 import com.spacework.reservations.repository.PrecioRepository;
@@ -30,6 +31,7 @@ import com.spacework.core.monitoring.BusinessMetricsService;
 public class ReservaService {
 
     private final ReservaRepository reservaRepository;
+    private final EspacioRepository espacioRepository;
     private final EstadoReservaRepository estadoReservaRepository;
     private final EmailService emailService;
     private final ServicioAdicionalRepository servicioAdicionalRepository;
@@ -38,7 +40,8 @@ public class ReservaService {
     private final BusinessMetricsService metricsService;
 
     @Autowired
-    public ReservaService(ReservaRepository reservaRepository, 
+    public ReservaService(ReservaRepository reservaRepository,
+                          EspacioRepository espacioRepository,
                           EstadoReservaRepository estadoReservaRepository,
                           EmailService emailService,
                           ServicioAdicionalRepository servicioAdicionalRepository,
@@ -46,6 +49,7 @@ public class ReservaService {
                           PrecioRepository precioRepository,
                           BusinessMetricsService metricsService) {
         this.reservaRepository = reservaRepository;
+        this.espacioRepository = espacioRepository;
         this.estadoReservaRepository = estadoReservaRepository;
         this.emailService = emailService;
         this.servicioAdicionalRepository = servicioAdicionalRepository;
@@ -72,6 +76,13 @@ public class ReservaService {
             throw new IllegalArgumentException(String.format("La hora de la reserva debe estar dentro del horario de atención del local (%s - %s).",
                     espacio.getHoraApertura(), espacio.getHoraCierre()));
         }
+
+        // Bloqueamos la fila del espacio hasta el final de esta transacción.
+        // Así, si dos personas intentan reservar el mismo espacio al mismo tiempo,
+        // la segunda transacción espera a que la primera termine (commit/rollback)
+        // antes de poder validar el traslape, evitando el doble-booking.
+        espacioRepository.findByIdForUpdate(espacio.getId())
+                .orElseThrow(() -> new IllegalArgumentException("El espacio no existe."));
 
         // Regla de negocio core: Evitar doble reserva en la misma sala y a la misma hora
         List<Reserva> overlapping = reservaRepository.findOverlappingReservations(espacio, inicio, fin);
@@ -188,22 +199,85 @@ public class ReservaService {
         if (diffDays == 0) diffDays = 1;
         long diasEfectivos = diffDays;
 
-        BigDecimal subtotal = BigDecimal.ZERO;
-        if (espacio.getTipoEspacio() != null && espacio.getTipoEspacio().getId() == 1) {
-            double horasACobrar = diffMs / (1000.0 * 60 * 60);
-            double startHour = inicio.getHour() + (inicio.getMinute() / 60.0);
-            double endHour = fin.getHour() + (fin.getMinute() / 60.0);
-            boolean isSameDay = inicio.toLocalDate().equals(fin.toLocalDate());
-            
-            if (isSameDay && startHour < 12 && endHour >= 12) {
-                horasACobrar = 8;
-                diasEfectivos = 1;
-            }
-            BigDecimal precioH = precioBase.compareTo(BigDecimal.ZERO) > 0 ? precioBase.divide(BigDecimal.valueOf(8), 2, java.math.RoundingMode.HALF_UP) : BigDecimal.ZERO;
-            subtotal = precioH.multiply(BigDecimal.valueOf(horasACobrar));
-        } else {
-            subtotal = precioBase.multiply(BigDecimal.valueOf(diasEfectivos));
-        }
+    BigDecimal subtotal = BigDecimal.ZERO;
+
+Integer tipoId = espacio.getTipoEspacio() != null
+        ? espacio.getTipoEspacio().getId()
+        : null;
+
+if (tipoId != null && tipoId == 1) {
+
+    // COWORKING: tarifa por hora
+    double horasACobrar = diffMs / (1000.0 * 60 * 60);
+
+    double startHour =
+            inicio.getHour() + (inicio.getMinute() / 60.0);
+
+    double endHour =
+            fin.getHour() + (fin.getMinute() / 60.0);
+
+    boolean isSameDay =
+            inicio.toLocalDate().equals(fin.toLocalDate());
+
+    if (isSameDay && startHour < 12 && endHour >= 12) {
+        horasACobrar = 8;
+        diasEfectivos = 1;
+    }
+
+    // El precio almacenado ya es el precio por hora.
+    subtotal = precioBase.multiply(
+            BigDecimal.valueOf(horasACobrar)
+    );
+
+} else if (tipoId != null && tipoId == 2) {
+
+    // OFICINA PRIVADA: tarifa por mes
+    long meses =
+            (fin.getYear() - inicio.getYear()) * 12L
+            + (fin.getMonthValue() - inicio.getMonthValue());
+
+    long mesesACobrar = meses;
+
+    if (
+        fin.getDayOfMonth() > inicio.getDayOfMonth()
+        ||
+        (
+            fin.getDayOfMonth() == inicio.getDayOfMonth()
+            &&
+            (
+                fin.getHour() > inicio.getHour()
+                ||
+                (
+                    fin.getHour() == inicio.getHour()
+                    && fin.getMinute() > inicio.getMinute()
+                )
+            )
+        )
+    ) {
+        mesesACobrar++;
+    }
+
+    if (mesesACobrar < 1) {
+        mesesACobrar = 1;
+    }
+
+    subtotal = precioBase.multiply(
+            BigDecimal.valueOf(mesesACobrar)
+    );
+
+} else if (tipoId != null && tipoId == 3) {
+
+    // SALA DE REUNIONES: tarifa por día
+    subtotal = precioBase.multiply(
+            BigDecimal.valueOf(diasEfectivos)
+    );
+
+} else {
+
+    throw new IllegalArgumentException(
+            "Tipo de espacio no válido para calcular la tarifa."
+    );
+}
 
         BigDecimal descMonto = subtotal.multiply(descBase).divide(BigDecimal.valueOf(100));
 

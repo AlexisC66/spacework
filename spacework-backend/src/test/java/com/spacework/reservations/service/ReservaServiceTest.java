@@ -4,6 +4,7 @@ import com.spacework.reservations.model.Espacio;
 import com.spacework.reservations.model.EstadoReserva;
 import com.spacework.reservations.model.Reserva;
 import com.spacework.crm.model.Usuario;
+import com.spacework.reservations.repository.EspacioRepository;
 import com.spacework.reservations.repository.EstadoReservaRepository;
 import com.spacework.reservations.repository.ReservaRepository;
 import com.spacework.core.monitoring.BusinessMetricsService;
@@ -29,6 +30,9 @@ public class ReservaServiceTest {
 
     @Mock
     private ReservaRepository reservaRepository;
+
+    @Mock
+    private EspacioRepository espacioRepository;
 
     @Mock
     private EstadoReservaRepository estadoReservaRepository;
@@ -80,6 +84,8 @@ public class ReservaServiceTest {
     @Test
     public void testCrearReservaExito() {
         // Arrange
+        when(espacioRepository.findByIdForUpdate(espacio.getId()))
+                .thenReturn(Optional.of(espacio));
         when(reservaRepository.findOverlappingReservations(espacio, inicio, fin))
                 .thenReturn(Collections.emptyList());
         when(estadoReservaRepository.findByNombreEstado("PENDIENTE"))
@@ -115,6 +121,8 @@ public class ReservaServiceTest {
     @Test
     public void testCrearReservaErrorSolapamiento() {
         // Arrange
+        when(espacioRepository.findByIdForUpdate(espacio.getId()))
+                .thenReturn(Optional.of(espacio));
         ArrayList<Reserva> overlappingList = new ArrayList<>();
         overlappingList.add(new Reserva()); // Simula solapamiento
         

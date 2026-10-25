@@ -36,6 +36,10 @@ public class AuthController {
     @Value("${CORS_ALLOWED_ORIGIN:http://localhost:5173}")
     private String frontendUrl;
 
+    /** En producción (HTTPS) debe ir en true. En localhost (HTTP) va en false. */
+    @Value("${cookie.secure:false}")
+    private boolean cookieSecure;
+
     @Autowired
     public AuthController(UsuarioService usuarioService, LoginAttemptService loginAttemptService,
                           JwtTokenProvider jwtTokenProvider, ModelMapper modelMapper,
@@ -83,14 +87,15 @@ public class AuthController {
                 
                 Cookie cookie = new Cookie("jwt", token);
                 cookie.setHttpOnly(true);
-                // cookie.setSecure(true);  // Deshabilitado para desarrollo local (HTTP)
+                cookie.setSecure(cookieSecure); // true en producción (HTTPS), false en localhost
                 cookie.setAttribute("SameSite", "Lax");
                 cookie.setPath("/");
                 cookie.setMaxAge(10 * 60 * 60); // 10 horas
                 httpResponse.addCookie(cookie);
                 
                 Map<String, Object> response = new HashMap<>();
-                response.put("token", token);
+                // El token ya viaja en la cookie HttpOnly; no lo repetimos en el body
+                // para no darle a un XSS otra forma de leerlo.
                 response.put("usuario", modelMapper.map(usuario, UsuarioResponseDTO.class));
                 return ResponseEntity.ok(response);
             } else {
@@ -111,7 +116,7 @@ public class AuthController {
     public ResponseEntity<?> logout(HttpServletResponse httpResponse) {
         Cookie cookie = new Cookie("jwt", null);
         cookie.setHttpOnly(true);
-        // cookie.setSecure(true);  // Deshabilitado para desarrollo local (HTTP)
+        cookie.setSecure(cookieSecure); // true en producción (HTTPS), false en localhost
         cookie.setAttribute("SameSite", "Lax");
         cookie.setPath("/");
         cookie.setMaxAge(0); // Expira inmediatamente

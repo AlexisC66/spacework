@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -48,6 +48,14 @@ export const apiService = {
   login: (correo: string, contrasena: string) => {
     return api.post(`/auth/login`, { correoElectronico: correo, contrasena: contrasena });
   },
+    forgotPassword: (email: string) =>
+    api.post('/auth/forgot-password', { email }),
+
+  validateResetToken: (token: string) =>
+    api.get(`/auth/validate-reset-token/${encodeURIComponent(token)}`),
+
+  resetPassword: (token: string, password: string) =>
+    api.post('/auth/reset-password', { token, password }),
 
   // users Endpoints
   getUsuarios: () => api.get(`/usuarios`),
@@ -70,6 +78,11 @@ export const apiService = {
 
   // spaces Endpoints
   getEspacios: () => api.get(`/espacios`),
+  getDisponibilidad: (id: number, desde: string, hasta: string) =>
+  api.get(`/espacios/${id}/disponibilidad`, { params: { desde, hasta } }),
+
+getDisponibilidadGeneral: (desde: string, hasta: string) =>
+  api.get('/espacios/disponibilidad', { params: { desde, hasta } }),
   getEspaciosFiltrados: (tipoEspacioId: number) => api.get(`/espacios/filtrar?tipoEspacioId=${tipoEspacioId}`),
   getTiposEspacio: () => api.get(`/espacios/tipos`),
   getUbicaciones: () => api.get(`/ubicaciones`),

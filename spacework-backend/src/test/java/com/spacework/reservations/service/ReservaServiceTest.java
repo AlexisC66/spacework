@@ -1,6 +1,7 @@
 package com.spacework.reservations.service;
 
 import com.spacework.reservations.model.Espacio;
+import com.spacework.reservations.model.TipoEspacio;
 import com.spacework.reservations.model.EstadoReserva;
 import com.spacework.reservations.model.Reserva;
 import com.spacework.crm.model.Usuario;
@@ -9,6 +10,8 @@ import com.spacework.reservations.repository.EstadoReservaRepository;
 import com.spacework.reservations.repository.ReservaRepository;
 import com.spacework.core.monitoring.BusinessMetricsService;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -61,6 +64,12 @@ public class ReservaServiceTest {
     private LocalDateTime inicio;
     private LocalDateTime fin;
 
+    @AfterEach
+public void tearDown() {
+    if (TransactionSynchronizationManager.isSynchronizationActive()) {
+        TransactionSynchronizationManager.clearSynchronization();
+    }
+}
     @BeforeEach
     public void setUp() {
         espacio = new Espacio();
@@ -68,6 +77,10 @@ public class ReservaServiceTest {
         espacio.setNombreEspacio("Sala A");
         espacio.setHoraApertura(java.time.LocalTime.of(8, 0));
         espacio.setHoraCierre(java.time.LocalTime.of(20, 0));
+        TipoEspacio tipo = new TipoEspacio();
+tipo.setId(3);
+tipo.setNombreTipo("Sala de reuniones");
+espacio.setTipoEspacio(tipo);
         
         usuario = new Usuario();
         usuario.setId(1);
@@ -107,6 +120,7 @@ public class ReservaServiceTest {
 
         when(reservaRepository.save(any(Reserva.class))).thenReturn(mockSavedReserva);
 
+        TransactionSynchronizationManager.initSynchronization();
         // Act
         Reserva result = reservaService.crearReserva(usuario, espacio, inicio, fin, new BigDecimal("100.00"), BigDecimal.ZERO, "Ninguna", null, new HashMap<>(), "BOLETA", "12345678", "", "");
 

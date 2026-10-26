@@ -93,7 +93,9 @@ const MisReservas: React.FC = () => {
     setCargando(true);
     try {
       const response = await apiService.getReservasPorUsuario(usuarioId);
-      const data = response.data;
+      const data = Array.isArray(response.data)
+  ? response.data
+  : response.data?.content ?? [];
       if (Array.isArray(data)) {
         setReservas([...data].sort((a, b) => (b?.id || 0) - (a?.id || 0)));
       } else {

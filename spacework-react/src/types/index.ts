@@ -90,3 +90,24 @@ export interface Pago {
     formaPago: { id: number; nombreForma: string };
     estadoPago: { id: number; nombreEstado: string };
 }
+export interface SlotDTO {
+    inicio: string;
+    fin: string;
+}
+export function extractApiError(error: unknown): string {
+    if (typeof error === 'object' && error !== null && 'response' in error) {
+        const response = error.response as {
+            data?: { error?: string; mensaje?: string; message?: string };
+        } | undefined;
+
+        const mensaje = response?.data?.error
+            || response?.data?.mensaje
+            || response?.data?.message;
+
+        if (typeof mensaje === 'string') return mensaje;
+    }
+
+    if (error instanceof Error) return error.message;
+
+    return 'Ocurrió un error. Inténtalo nuevamente.';
+}

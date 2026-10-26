@@ -15,7 +15,9 @@ const ReservasAdminView = () => {
     setLoading(true);
     try {
       const response = await apiService.getTodasReservas();
-      let data = response.data;
+      let data = Array.isArray(response.data)
+  ? response.data
+  : response.data?.content ?? [];
       if (Array.isArray(data)) {
         setReservas(data.sort((a, b) => (b?.id || 0) - (a?.id || 0)));
       } else {
